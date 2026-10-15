@@ -7,7 +7,7 @@ load_dotenv()
 
 def obtener_dato_de_prueba(pregunta):
     api_key = os.getenv("API_KEY")
-    modelo = "gemini-3.8-flash"
+    modelo = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
     headers = {"x-goog-api-key": api_key}
     body = {
