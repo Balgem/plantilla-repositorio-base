@@ -21,21 +21,21 @@ def armar_peticion(pregunta):
 def enviar_peticion(url, headers, body):
     try:
         respuesta = requests.post(url, headers=headers, json=body, timeout=30)
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-        raise RuntimeError("No se pudo conectar con el servicio. Intenta de nuevo en unos segundos.")
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
+        raise RuntimeError("No se pudo conectar con el servicio. Intenta de nuevo en unos segundos.") from error
     if not respuesta.ok:
         raise RuntimeError(f"El servicio respondió con un error (código {respuesta.status_code}).")
     try:
         return respuesta.json()
-    except requests.exceptions.JSONDecodeError:
-        raise RuntimeError("La respuesta del servicio no llegó en el formato esperado.")
+    except requests.exceptions.JSONDecodeError as error:
+        raise RuntimeError("La respuesta del servicio no llegó en el formato esperado.") from error
 
 
 def extraer_texto(respuesta_json):
     try:
         return respuesta_json["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        raise RuntimeError("La respuesta no trae el texto generado en el lugar esperado.")
+    except (KeyError, IndexError) as error:
+        raise RuntimeError("La respuesta no trae el texto generado en el lugar esperado.") from error
 
 
 def preguntar_a_gemini(pregunta):
