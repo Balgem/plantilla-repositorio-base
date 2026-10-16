@@ -23,10 +23,9 @@ def extraer_texto(datos):
     return datos["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def obtener_dato_de_prueba(pregunta):
+def preguntar_a_gemini(pregunta):
     url, headers, body = armar_peticion(pregunta)
     datos = enviar_peticion(url, headers, body)
     return extraer_texto(datos)
-
-
-print(obtener_dato_de_prueba("Confirma en una frase corta que esta conexión funciona"))
+if __name__ == "__main__":
+    print(preguntar_a_gemini("Confirma en una frase corta que esta conexión funciona"))
