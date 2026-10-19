@@ -38,6 +38,16 @@ def extraer_texto(respuesta_json):
         raise RuntimeError("La respuesta no trae el texto generado en el lugar esperado.") from error
 
 
+def calcular_costo(respuesta_json, precio_entrada, precio_salida):
+    try:
+        uso = respuesta_json["usageMetadata"]
+        tokens_entrada = uso["promptTokenCount"]
+        tokens_salida = uso["candidatesTokenCount"] + uso.get("thoughtsTokenCount", 0)
+    except KeyError as error:
+        raise RuntimeError("La respuesta no trae el conteo de tokens esperado.") from error
+    return (tokens_entrada * precio_entrada) + (tokens_salida * precio_salida)
+
+
 def preguntar_a_gemini(pregunta):
     url, headers, body = armar_peticion(pregunta)
     respuesta_json = enviar_peticion(url, headers, body)
