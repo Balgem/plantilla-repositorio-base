@@ -1,0 +1,129 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Proyecto banner" id="bvKHtbEUpJnfzBbdaBHT">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-1" parent="1" style="text;html=1;align=left;fontSize=16;" value="&lt;b&gt;Banner rotativo con bot conversacional para Twitch&lt;/b&gt; · arquitectura del proyecto" vertex="1">
+          <mxGeometry height="30" width="1220" x="40" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-2" parent="1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=12;" value="&lt;b&gt;Viewer&lt;/b&gt; del stream" vertex="1">
+          <mxGeometry height="60" width="200" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Chat de Twitch&lt;/b&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="520" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#7b4f9e;" value="&lt;b&gt;Banner rotativo en OBS&lt;/b&gt;&lt;br&gt;(overlay web, Gate 3)" vertex="1">
+          <mxGeometry height="80" width="200" x="40" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=12;" value="&lt;b&gt;Marca&lt;/b&gt;&lt;br&gt;mide el impacto de su campaña" vertex="1">
+          <mxGeometry height="60" width="200" x="40" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;API Helix de Twitch&lt;/b&gt;&lt;br&gt;viewers en vivo" vertex="1">
+          <mxGeometry height="70" width="180" x="1080" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-7" parent="1" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="&lt;b&gt;API de Gemini&lt;/b&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="1080" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-8" parent="1" style="rounded=1;dashed=1;fillColor=none;strokeColor=#7b4f9e;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;html=1;fontSize=12;whiteSpace=wrap;" value="&lt;b&gt;Gate 3&lt;/b&gt; · API propia en un contenedor Docker, con documentación y pruebas" vertex="1">
+          <mxGeometry height="500" width="760" x="290" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#7b4f9e;" value="&lt;b&gt;API de campañas&lt;/b&gt; (Gate 3)&lt;br&gt;entrega el banner,&lt;br&gt;recibe impresiones" vertex="1">
+          <mxGeometry height="70" width="180" x="320" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-10" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fillColor=#d5e8d4;strokeColor=#2d7a2d;fontSize=11;" value="&lt;b&gt;Base de datos&lt;/b&gt; (Gate 2)&lt;br&gt;viewers, interacciones, clics" vertex="1">
+          <mxGeometry height="80" width="180" x="320" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#7b4f9e;" value="&lt;b&gt;Reporte para la marca&lt;/b&gt;&lt;br&gt;(Gate 3)" vertex="1">
+          <mxGeometry height="70" width="180" x="320" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#7b4f9e;dashed=1;align=left;spacingLeft=8;" value="&lt;b&gt;.env&lt;/b&gt; (fuera del repo)&lt;br&gt;API_KEY · GEMINI_MODEL&lt;br&gt;credenciales de Twitch" vertex="1">
+          <mxGeometry height="70" width="180" x="320" y="615" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#2d7a2d;" value="&lt;b&gt;Links medibles&lt;/b&gt; (Gate 2)&lt;br&gt;/r/{code} registra cada clic" vertex="1">
+          <mxGeometry height="70" width="180" x="540" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#2d7a2d;" value="&lt;b&gt;CRM&lt;/b&gt; (Gate 2)&lt;br&gt;registrar_en_crm()" vertex="1">
+          <mxGeometry height="80" width="180" x="540" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6a100;align=left;spacingLeft=8;" value="&lt;b&gt;Manejo de errores&lt;/b&gt;&lt;br&gt;· 429 rate limit → reintento&lt;br&gt;· 401 / 503 → mensaje claro&lt;br&gt;· el servicio no se cae" vertex="1">
+          <mxGeometry height="90" width="180" x="540" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#2d7a2d;" value="&lt;b&gt;Lector de chat&lt;/b&gt; (Gate 2)&lt;br&gt;EventSub channel.chat.message" vertex="1">
+          <mxGeometry height="70" width="220" x="800" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#2d7a2d;" value="&lt;b&gt;Agente&lt;/b&gt; (Gate 2)&lt;br&gt;clasifica cada mensaje y decide:&lt;br&gt;responder · consultar_viewers()&lt;br&gt;· registrar_en_crm()" vertex="1">
+          <mxGeometry height="110" width="220" x="800" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#1f5fbf;" value="&lt;b&gt;consumir_gemini.py&lt;/b&gt;&lt;br&gt;(Gate 1, ya construido)&lt;br&gt;armar → enviar → extraer&lt;br&gt;+ calcular_costo" vertex="1">
+          <mxGeometry height="110" width="220" x="800" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-24" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="p8CYnBY5IdgNoSCEqPqn-2" value="ve banner + link">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-25" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-3" value="escribe en el chat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-26" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0.9;exitY=1;entryX=0.5;entryY=0;" target="p8CYnBY5IdgNoSCEqPqn-13" value="clic en el link">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="170" />
+              <mxPoint x="630" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-27" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0;exitY=0.35;entryX=1;entryY=0.3;" target="p8CYnBY5IdgNoSCEqPqn-4" value="banner">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-28" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.7;entryX=0;entryY=0.8;" target="p8CYnBY5IdgNoSCEqPqn-9" value="impresión">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-29" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;" target="p8CYnBY5IdgNoSCEqPqn-14" value="clic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-30" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-10" value="persiste">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-31" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="p8CYnBY5IdgNoSCEqPqn-11" value="métricas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-32" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-5" value="reporte">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-33" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.3;entryX=0.5;entryY=0;" target="p8CYnBY5IdgNoSCEqPqn-16" value="mensajes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-34" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;" target="p8CYnBY5IdgNoSCEqPqn-17" value="mensaje">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-35" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=0;exitY=0.55;entryX=1;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-14" value="registrar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-36" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.4;entryX=0;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-6" value="viewers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-37" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.15;entryX=0.5;entryY=0;" target="p8CYnBY5IdgNoSCEqPqn-3" value="respuesta + link">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="386" />
+              <mxPoint x="1040" y="40" />
+              <mxPoint x="640" y="40" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-38" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;startArrow=block;" target="p8CYnBY5IdgNoSCEqPqn-18" value="prompt ↓ / texto ↑">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-39" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.55;entryX=0;entryY=0.5;" target="p8CYnBY5IdgNoSCEqPqn-7" value="POST">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-40" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;labelBackgroundColor=#ffffff;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.9;" target="p8CYnBY5IdgNoSCEqPqn-18" value="credenciales">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8CYnBY5IdgNoSCEqPqn-41" edge="1" parent="1" source="p8CYnBY5IdgNoSCEqPqn-15" style="dashed=1;endArrow=none;html=1;strokeColor=#999999;exitX=1;exitY=0.3;entryX=0;entryY=0.85;" target="p8CYnBY5IdgNoSCEqPqn-17" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
