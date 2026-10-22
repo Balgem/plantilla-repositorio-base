@@ -76,7 +76,7 @@ El script ordena automáticamente a los modelos que cumplen los criterios mínim
 | `gemma-4-26b-a4b-it`, `gemma-4-31b-it` | Sin precio publicado, de 10 a 30 s de latencia y devuelven el razonamiento mezclado con la respuesta. El 31b además falló 4 veces por conexión. |
 | `gemini-3.1-pro-preview`, `gemini-4-argon`, `gemini-omni-1.1-flash` | Sin nivel gratuito y con una salida de 3,6 a 8 veces más cara. Clasificar mensajes de chat no necesita un modelo de esa capacidad: todos los modelos baratos que se pudieron evaluar clasificaron 8 de 8. |
 
-## Hallazgos para el diseño del agente (Gate 2)
+## Hallazgos para el diseño del agente
 
 1. **Sin los datos de la campaña, el modelo inventa.** En una prueba sin contexto, los modelos inventaron un precio, un descuento y comandos de chat inexistentes. Al entregarles los datos reales de la campaña en el prompt, ninguno inventó precios ni descuentos. El agente siempre debe recibir los datos de la campaña activa.
 2. **Hay que pedir explícitamente que diga "no sé".** Aun con los datos, `gemini-3.1-flash-lite` respondió "Sí" a una pregunta sobre envíos. La instrucción debe exigir que el bot reconozca lo que no sabe, y conviene revisar manualmente una muestra de respuestas.
