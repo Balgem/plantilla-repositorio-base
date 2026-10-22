@@ -1,0 +1,21 @@
+{
+  "fecha": "2026-10-21",
+  "intentos_por_prompt": 3,
+  "prompts": {
+    "clasificar_mensaje": {
+      "exitos": 3,
+      "intentos": 3,
+      "fallos": []
+    },
+    "responder_viewer": {
+      "exitos": 3,
+      "intentos": 3,
+      "fallos": []
+    },
+    "resumir_chat": {
+      "exitos": 3,
+      "intentos": 3,
+      "fallos": []
+    }
+  }
+}
