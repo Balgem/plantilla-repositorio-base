@@ -1,16 +1,16 @@
-# Bot de chat con IA para campañas en Twitch
+# 🎮 Bot de chat con IA para campañas en Twitch
 
 Proyecto del Módulo 1 (Gate 1) de la Especialización en Desarrollo con IA Generativa.
 
 La idea es un bot que lee el chat de un stream donde hay una campaña publicitaria, entiende qué tipo de mensaje es cada uno, responde las preguntas sobre el producto con los datos reales de la campaña y al final arma un resumen para la marca. En esta primera etapa construí la base: el módulo que habla con Gemini, los prompts y la elección del modelo.
 
-## El problema
+## 📌 El problema
 
 Cuando una marca pone un banner en un stream, lo único que sabe es que el banner salió. No sabe qué preguntó la gente en el chat, quién quería comprar ni qué dudas quedaron sin responder. Y en un chat que se mueve rápido, una pregunta tipo "¿cuánto cuesta?" se pierde entre memes y spam en segundos.
 
 Responder a mano no escala, y poner un modelo de lenguaje a responder sin control tampoco sirve: en mis primeras pruebas, cuando no le daba los datos de la campaña, el modelo inventaba precios y descuentos que no existían. Por eso el bot solo puede usar los datos que le paso y, si no sabe algo, tiene que decirlo.
 
-## Cómo está armado
+## 🏗️ Cómo está armado
 
 ![Diagrama del módulo](docs/diagrama.png)
 
@@ -29,7 +29,7 @@ Los otros archivos:
 - `src/comparar_modelos.py`: el script que usé para comparar modelos.
 - `docs/decision-arquitectura.md`: por qué elegí el modelo que elegí.
 
-### Qué modelo usé y por qué
+### 📊 Qué modelo usé y por qué
 
 Probé 9 modelos de Gemini con 8 mensajes de chat de ejemplo y medí la latencia 4 veces cada uno (20 de octubre de 2026). Estos fueron los que respondieron bien:
 
@@ -43,7 +43,7 @@ Probé 9 modelos de Gemini con 8 mensajes de chat de ejemplo y medí la latencia
 
 Me quedé con `gemini-3.5-flash-lite`. El 3.1 es un poco más barato, pero tres veces más lento, y en un chat en vivo una respuesta que llega 6 segundos tarde ya no sirve. Los modelos más grandes no clasificaban mejor y costaban entre 10 y 19 veces más. El detalle está en `docs/decision-arquitectura.md`.
 
-## Instalación
+## ⚡ Instalación
 
 Necesitas Python 3.12 o superior, Git y una API key de Gemini (es gratis, se saca en [Google AI Studio](https://aistudio.google.com/apikey)).
 
@@ -74,7 +74,7 @@ GEMINI_MODEL=gemini-3.5-flash-lite
 
 El `.env` está en el `.gitignore`, así que la llave nunca se sube al repo.
 
-## Cómo usarlo
+## 🚀 Cómo usarlo
 
 Con el entorno activo:
 
@@ -108,13 +108,13 @@ Con los prompts del banco la respuesta llega como JSON. Por ejemplo, para "hacen
 }
 ```
 
-### Lo que hace y lo que todavía no
+### ⚠️ Lo que hace y lo que todavía no
 
 Por ahora el bot clasifica mensajes, responde con los datos de la campaña, entrega JSON validado y calcula el costo de cada petición.
 
 Lo que todavía no hace: no está conectado al chat real de Twitch, no guarda las interacciones en ningún lado y no tiene una API propia. Eso viene en los próximos gates.
 
-## Errores
+## 🛡️ Errores
 
 La idea es que el programa nunca se caiga con un traceback; cada error termina en un mensaje claro.
 
@@ -128,7 +128,7 @@ La idea es que el programa nunca se caiga con un traceback; cada error termina e
 
 Los 503 fueron bastante frecuentes durante las pruebas, por eso agregué los reintentos.
 
-## Prompts
+## 🗂️ Prompts
 
 En `prompts/banco.py` hay tres prompts, cada uno con su esquema JSON:
 
@@ -145,10 +145,3 @@ python3 prompts/test_consistencia.py
 Corre cada prompt 3 veces y guarda el resultado en `prompts/registro_resultados.json`. Los tres dieron 3 de 3 respuestas válidas.
 
 Algo que aprendí acá: si se le deja, el modelo también le hace publicidad al spam. Por eso el clasificador decide primero si corresponde responder, y el bot solo contesta preguntas del producto o interés de compra.
-
-## Lo que viene
-
-- **Gate 2:** conectar el bot al chat de Twitch en vivo y armar un agente que pueda consultar cuántos viewers hay y registrar las interacciones.
-- **Gate 3:** exponerlo como una API propia en Docker, con pruebas y un reporte para la marca.
-
-Las pruebas de instalación desde cero que hice están en `docs/ensayos_instalacion.md`.
