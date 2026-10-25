@@ -1,102 +1,89 @@
-# 🎮 Bot de chat con IA para campañas publicitarias en Twitch
+# Bot de chat con IA para campañas en Twitch
 
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
-[![Modelo](https://img.shields.io/badge/modelo-gemini--3.5--flash--lite-orange.svg)](docs/decision-arquitectura.md)
-[![Consistencia de prompts](https://img.shields.io/badge/prompts-3%2F3%20consistentes-success.svg)](prompts/registro_resultados.json)
+Proyecto del Módulo 1 (Gate 1) de la Especialización en Desarrollo con IA Generativa.
 
-> **Un bot de chat con IA generativa que convierte la conversación de un stream en interacciones medibles para la marca: clasifica cada mensaje del chat, responde con los datos reales de la campaña y deja registro de lo que preguntó la audiencia.**
+La idea es un bot que lee el chat de un stream donde hay una campaña publicitaria, entiende qué tipo de mensaje es cada uno, responde las preguntas sobre el producto con los datos reales de la campaña y al final arma un resumen para la marca. En esta primera etapa construí la base: el módulo que habla con Gemini, los prompts y la elección del modelo.
 
----
+## El problema
 
-## 📌 1. Problema de negocio y propuesta de valor
+Cuando una marca pone un banner en un stream, lo único que sabe es que el banner salió. No sabe qué preguntó la gente en el chat, quién quería comprar ni qué dudas quedaron sin responder. Y en un chat que se mueve rápido, una pregunta tipo "¿cuánto cuesta?" se pierde entre memes y spam en segundos.
 
-Las marcas que invierten en publicidad dentro de transmisiones en vivo **no tienen métricas precisas** del impacto real de sus campañas. Un banner aparece en el stream, pero nadie mide qué preguntó el chat, quién mostró interés de compra ni qué dudas quedaron sin responder.
+Responder a mano no escala, y poner un modelo de lenguaje a responder sin control tampoco sirve: en mis primeras pruebas, cuando no le daba los datos de la campaña, el modelo inventaba precios y descuentos que no existían. Por eso el bot solo puede usar los datos que le paso y, si no sabe algo, tiene que decirlo.
 
-### Desafíos detectados
-1. **El chat se mueve demasiado rápido.** Las preguntas sobre el producto quedan enterradas entre reacciones, memes y spam.
-2. **Responder a mano no escala.** Un moderador no puede contestar cada pregunta con el precio y el link correctos.
-3. **Un bot genérico es un riesgo.** Un modelo sin control inventa precios, descuentos o promociones que la marca no ofrece.
+## Cómo está armado
 
-### Propuesta
-Un módulo en Python que usa la API de Google Gemini para **clasificar** cada mensaje del chat, **responder** solo con los datos de la campaña (reconociendo lo que no sabe en vez de inventarlo), **resumir** el chat para el reporte a la marca y **medir** el costo en USD de cada interacción.
+![Diagrama del módulo](docs/diagrama.png)
 
----
+Todo el consumo de la API está en `src/consumir_gemini.py`, separado en funciones chicas:
 
-## 🏗️ 2. Arquitectura
+- `armar_peticion` valida el mensaje y arma la petición (con la instrucción de sistema y el esquema JSON cuando corresponde).
+- `enviar_peticion` hace el POST con timeout y transforma los errores de red o del servicio en mensajes entendibles.
+- `con_reintentos` vuelve a intentar cuando Gemini está saturado (429 o 5xx), esperando 2, 4 y 8 segundos.
+- `extraer_texto` saca el texto de la respuesta.
+- `parsear_respuesta_json` limpia el JSON y revisa que traiga las claves que espero.
+- `calcular_costo` calcula cuánto costó la petición a partir de los tokens.
 
-![Diagrama de arquitectura del módulo](docs/diagrama.png)
+Los otros archivos:
 
-### Componentes principales
-* **`src/consumir_gemini.py`**: el módulo principal, con una función por responsabilidad:
-  * `armar_peticion(...)`: valida la entrada y arma la petición con `systemInstruction` y `responseSchema`.
-  * `enviar_peticion(...)`: hace el `POST` con timeout y convierte cada falla en un mensaje claro.
-  * `con_reintentos(...)`: reintenta con espera creciente ante saturación (429, 5xx) o falta de conexión.
-  * `extraer_texto(...)`: navega la respuesta de Gemini hasta el texto generado.
-  * `parsear_respuesta_json(...)`: limpia el markdown y valida que el JSON traiga las claves esperadas.
-  * `calcular_costo(...)`: calcula el costo en USD desde `usageMetadata`, incluidos los tokens de razonamiento.
-* **`src/comparar_modelos.py`**: mide modelos de Gemini por costo, latencia, calidad y disponibilidad.
-* **`prompts/banco.py`** y **`prompts/test_consistencia.py`**: el banco de prompts del bot y su prueba de consistencia.
-* **`docs/decision-arquitectura.md`**: la elección del modelo, con la comparación completa y las alternativas descartadas.
+- `prompts/banco.py`: los tres prompts del bot. `prompts/test_consistencia.py` los prueba contra la API.
+- `src/comparar_modelos.py`: el script que usé para comparar modelos.
+- `docs/decision-arquitectura.md`: por qué elegí el modelo que elegí.
 
-### 📊 Comparación de modelos (medida el 2026-10-20)
+### Qué modelo usé y por qué
 
-| Modelo | Latencia mediana | Costo por 10.000 mensajes | Clasificación correcta |
-| :--- | :--- | :--- | :--- |
-| **`gemini-3.5-flash-lite`** ✅ | **1,95 s** | **1,32 USD** | 8 de 8 |
-| `gemini-3.1-flash-lite` | 6,31 s | 0,84 USD | 8 de 8 |
-| `gemini-3-flash-preview` | 3,63 s | 12,65 USD | 8 de 8 |
-| `gemini-3.6-flash` | 4,98 s | 24,94 USD | 8 de 8 |
-| `gemini-3.8-flash` | 10,45 s | 24,20 USD | 8 de 8 |
+Probé 9 modelos de Gemini con 8 mensajes de chat de ejemplo y medí la latencia 4 veces cada uno (20 de octubre de 2026). Estos fueron los que respondieron bien:
 
-**Se eligió `gemini-3.5-flash-lite`**: en un chat en vivo la velocidad pesa más que una diferencia mínima de costo, y fue el más rápido sin inventar datos de la campaña.
+| Modelo | Latencia (mediana) | Costo por 10.000 mensajes | Clasificó bien |
+| --- | --- | --- | --- |
+| gemini-3.5-flash-lite (elegido) | 1,95 s | 1,32 USD | 8 de 8 |
+| gemini-3.1-flash-lite | 6,31 s | 0,84 USD | 8 de 8 |
+| gemini-3-flash-preview | 3,63 s | 12,65 USD | 8 de 8 |
+| gemini-3.6-flash | 4,98 s | 24,94 USD | 8 de 8 |
+| gemini-3.8-flash | 10,45 s | 24,20 USD | 8 de 8 |
 
----
+Me quedé con `gemini-3.5-flash-lite`. El 3.1 es un poco más barato, pero tres veces más lento, y en un chat en vivo una respuesta que llega 6 segundos tarde ya no sirve. Los modelos más grandes no clasificaban mejor y costaban entre 10 y 19 veces más. El detalle está en `docs/decision-arquitectura.md`.
 
-## ⚡ 3. Instalación
+## Instalación
 
-### Requisitos
-* **Python 3.12+** y **Git**. En macOS, `python3` suele ser el Python 3.9 del sistema: instala 3.12 con `brew install python@3.12`.
-* Una **API key de Gemini**, gratuita en [Google AI Studio](https://aistudio.google.com/apikey).
+Necesitas Python 3.12 o superior, Git y una API key de Gemini (es gratis, se saca en [Google AI Studio](https://aistudio.google.com/apikey)).
 
-### Paso 1: Clonar y crear el entorno virtual
+Ojo en Mac: `python3` a secas puede ser el Python 3.9 que viene con el sistema, y con ese las dependencias no se instalan (me pasó). Si no tienes 3.12: `brew install python@3.12`.
+
 ```bash
 git clone https://github.com/Balgem/plantilla-repositorio-base.git
 cd plantilla-repositorio-base
 
-# macOS / Linux:
+# Mac / Linux
 python3.12 -m venv venv
 source venv/bin/activate
 
-# Windows (PowerShell):
+# Windows (PowerShell)
 py -3.12 -m venv venv
 .\venv\Scripts\Activate.ps1
-```
 
-### Paso 2: Instalar las dependencias
-```bash
 pip install -r requirements.txt
-```
-
-### Paso 3: Configurar las variables de entorno
-```bash
 cp .env.example .env
 ```
-Edita `.env` y completa tu llave (el archivo está en `.gitignore`, así que nunca se sube):
+
+Después abre el `.env` y pon tu llave:
+
 ```ini
 API_KEY=tu_llave_de_gemini
 GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
----
+El `.env` está en el `.gitignore`, así que la llave nunca se sube al repo.
 
-## 🚀 4. Uso
+## Cómo usarlo
 
-Con el entorno activo, desde la raíz del repositorio:
+Con el entorno activo:
+
 ```bash
 python3 src/consumir_gemini.py
 ```
 
-### Salida esperada
+Debería salir algo así (el texto cambia un poco en cada corrida):
+
 ```text
 --- Entrada vacía ---
 No se pudo completar la operación: La pregunta no puede estar vacía.
@@ -109,8 +96,10 @@ pregunta_producto | ¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Pídelo a
 pregunta_producto | No tengo esa información, revisa el link https://ejemplo.cl/r/k7
 ```
 
-### Ejemplo de salida JSON (prompt `responder_viewer`)
-**Entrada:** `"hacen envíos a regiones?"`
+El primer error es a propósito: muestra que el módulo rechaza un mensaje vacío antes de llamar a la API. Y el último caso es el que más me importaba: la campaña de ejemplo no dice nada de envíos, así que el bot no inventa y manda al link.
+
+Con los prompts del banco la respuesta llega como JSON. Por ejemplo, para "hacen envíos a regiones?":
+
 ```json
 {
   "respuesta": "No tengo información sobre envíos a regiones, te sugiero revisar el link https://ejemplo.cl/r/k7",
@@ -119,46 +108,47 @@ pregunta_producto | No tengo esa información, revisa el link https://ejemplo.cl
 }
 ```
 
-### ⚠️ Alcance (Gate 1)
-* **Qué SÍ hace:**
-  * ✅ Clasifica mensajes del chat y responde solo con los datos de la campaña.
-  * ✅ Entrega salidas JSON validadas con `responseSchema`.
-  * ✅ Valida la entrada antes de llamar a la API y maneja los errores de red, cuota y formato.
-  * ✅ Calcula el costo en USD de cada petición.
-* **Qué NO hace todavía:**
-  * ❌ No se conecta al chat de Twitch en vivo (Gate 2).
-  * ❌ No registra las interacciones en una base de datos ni en un CRM (Gate 2).
-  * ❌ No expone una API propia ni corre en un contenedor (Gate 3).
+### Lo que hace y lo que todavía no
 
----
+Por ahora el bot clasifica mensajes, responde con los datos de la campaña, entrega JSON validado y calcula el costo de cada petición.
 
-## 🛡️ 5. Manejo de errores
+Lo que todavía no hace: no está conectado al chat real de Twitch, no guarda las interacciones en ningún lado y no tiene una API propia. Eso viene en los próximos gates.
 
-| Escenario | Dónde se controla | Respuesta |
-| :--- | :--- | :--- |
-| **Entrada vacía** o falta `API_KEY` | `armar_peticion` | `ValueError` antes de llamar a la API |
-| **Sin conexión o timeout** | `enviar_peticion` | `RuntimeError: No se pudo conectar con el servicio...` |
-| **Llave inválida** (400, 401, 403) | `enviar_peticion` | `RuntimeError` con el código, sin reintentar |
-| **Cuota o saturación** (429, 5xx) | `con_reintentos` | Reintenta tras 2, 4 y 8 s; si sigue fallando, `RuntimeError` |
-| **Respuesta sin texto o JSON inválido** | `extraer_texto`, `parsear_respuesta_json` | `RuntimeError` / `ValueError` con lo que falta |
+## Errores
 
----
+La idea es que el programa nunca se caiga con un traceback; cada error termina en un mensaje claro.
 
-## 🗂️ 6. Banco de prompts y consistencia
+| Qué pasa | Dónde se maneja | Qué hace |
+| --- | --- | --- |
+| Mensaje vacío o falta la `API_KEY` | `armar_peticion` | `ValueError` antes de llamar a la API |
+| Sin internet o timeout | `enviar_peticion` | `RuntimeError` avisando que no se pudo conectar |
+| Llave inválida (400, 401, 403) | `enviar_peticion` | `RuntimeError` con el código, sin reintentar |
+| Gemini saturado (429, 5xx) | `con_reintentos` | Reintenta 3 veces; si sigue fallando, `RuntimeError` |
+| Respuesta sin texto o JSON mal formado | `extraer_texto`, `parsear_respuesta_json` | Error indicando qué faltó |
 
-1. **`clasificar_mensaje`**: clasifica el mensaje y decide si el bot responde.
-2. **`responder_viewer`**: responde con los datos de la campaña y reconoce lo que no sabe.
-3. **`resumir_chat`**: resume un lote de mensajes para el reporte a la marca.
+Los 503 fueron bastante frecuentes durante las pruebas, por eso agregué los reintentos.
+
+## Prompts
+
+En `prompts/banco.py` hay tres prompts, cada uno con su esquema JSON:
+
+1. `clasificar_mensaje`: decide si el mensaje es una pregunta del producto, interés de compra, spam u otra cosa, y si el bot debería responder.
+2. `responder_viewer`: responde usando solo los datos de la campaña.
+3. `resumir_chat`: resume un grupo de mensajes para el reporte a la marca.
+
+Para probarlos:
 
 ```bash
 python3 prompts/test_consistencia.py
 ```
-Ejecuta cada prompt 3 veces contra la API real y guarda el resultado en `prompts/registro_resultados.json`, con una **consistencia de 3/3** en los tres prompts.
 
----
+Corre cada prompt 3 veces y guarda el resultado en `prompts/registro_resultados.json`. Los tres dieron 3 de 3 respuestas válidas.
 
-## 🗺️ 7. Hoja de ruta
+Algo que aprendí acá: si se le deja, el modelo también le hace publicidad al spam. Por eso el clasificador decide primero si corresponde responder, y el bot solo contesta preguntas del producto o interés de compra.
 
-* **Gate 1 · Habilitación técnica (actual):** módulo de consumo de Gemini, salida JSON validada, banco de prompts y elección del modelo con datos medidos.
-* **Gate 2 · Integración y orquestación:** lector del chat de Twitch en tiempo real y un agente con herramientas para consultar los viewers y registrar las interacciones en el CRM.
-* **Gate 3 · Capstone:** API propia en un contenedor Docker, con pruebas y un reporte de impacto para la marca.
+## Lo que viene
+
+- **Gate 2:** conectar el bot al chat de Twitch en vivo y armar un agente que pueda consultar cuántos viewers hay y registrar las interacciones.
+- **Gate 3:** exponerlo como una API propia en Docker, con pruebas y un reporte para la marca.
+
+Las pruebas de instalación desde cero que hice están en `docs/ensayos_instalacion.md`.
