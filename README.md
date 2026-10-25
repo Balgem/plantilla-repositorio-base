@@ -238,9 +238,17 @@ python3 src/comparar_modelos.py
 
 ---
 
-## 📋 9. Registro del ensayo de instalación limpia
+## 📋 9. Registro de los ensayos de instalación limpia
 
-- **Fecha:** 2026-10-22.
+### Ensayo 2 · macOS (2026-10-25)
+
+- **Entorno:** MacBook con chip Apple, macOS 14, zsh. Clon nuevo en una carpeta aparte, siguiendo solo este README.
+- **Encontrado:** en macOS, `python3` a secas es el Python 3.9 del sistema. El entorno se creó con 3.9 y `pip install -r requirements.txt` falló (`Could not find a version that satisfies the requirement annotated-types==0.8.0`), así que después faltaba `requests`.
+- **Corregido:** el README ahora exige Python 3.12, crea el entorno con `python3.12 -m venv venv`, explica cómo instalarlo con Homebrew y agrega el error a la tabla de problemas frecuentes.
+- **Resultado:** Python 3.12, las 26 dependencias instaladas sin errores, `git status` del clon limpio (el `.env` no aparece) y una corrida real con la API sin ningún traceback.
+
+### Ensayo 1 · Nube (2026-10-22)
+
 - **Entorno:** contenedor Linux en la nube, sin nada instalado previamente; Python 3.13.
 - **Pasos:** clonar desde GitHub, crear un entorno virtual nuevo, `pip install -r requirements.txt`, `cp .env.example .env` y ejecutar `src/consumir_gemini.py`.
 - **Encontrado:** `.env.example` traía `GEMINI_MODEL=gemini-3.6-flash`, el modelo que la decisión de arquitectura descartó. Quien siguiera las instrucciones habría usado un modelo unas 19 veces más caro y más lento.
