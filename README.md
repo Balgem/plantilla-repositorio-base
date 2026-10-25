@@ -75,7 +75,7 @@ git clone https://github.com/Balgem/plantilla-repositorio-base.git
 cd plantilla-repositorio-base
 python3.12 -m venv venv
 source venv/bin/activate
-python --version   # debe decir Python 3.12 o superior
+python3 --version   # debe decir Python 3.12 o superior
 ```
 
 **Windows (PowerShell)**
