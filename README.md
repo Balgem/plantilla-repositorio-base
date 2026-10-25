@@ -63,7 +63,8 @@ Se compararon 9 modelos con 8 mensajes de chat reales y 4 repeticiones para la l
 ## ⚡ 3. Instalación
 
 ### Requisitos
-* **Python 3.12+** y **Git**.
+* **Python 3.12+** y **Git**. Las dependencias no se instalan en versiones anteriores.
+  * **En macOS, `python3` a secas suele ser el Python 3.9 del sistema.** Por eso los comandos usan `python3.12`. Si no lo tienes, instálalo con `brew install python@3.12` o desde [python.org](https://www.python.org/downloads/).
 * Una **API key de Gemini**. Es gratuita y no pide tarjeta: se crea en [Google AI Studio](https://aistudio.google.com/apikey).
 
 ### Paso 1: Clonar y crear el entorno virtual
@@ -72,8 +73,9 @@ Se compararon 9 modelos con 8 mensajes de chat reales y 4 repeticiones para la l
 ```bash
 git clone https://github.com/Balgem/plantilla-repositorio-base.git
 cd plantilla-repositorio-base
-python3 -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate
+python --version   # debe decir Python 3.12 o superior
 ```
 
 **Windows (PowerShell)**
@@ -82,7 +84,10 @@ git clone https://github.com/Balgem/plantilla-repositorio-base.git
 cd plantilla-repositorio-base
 python -m venv venv
 .\venv\Scripts\Activate.ps1
+python --version   # debe decir Python 3.12 o superior
 ```
+
+Si `python --version` muestra una versión menor, borra la carpeta `venv` y créala de nuevo con `py -3.12 -m venv venv`.
 
 Si PowerShell no permite activar el entorno, ejecuta una vez `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 
@@ -180,7 +185,8 @@ Cada excepción conserva la causa técnica original (`raise ... from error`) par
 | `código 400` o `código 401` | La llave está incompleta o no es válida: vuelve a copiarla desde AI Studio. |
 | `código 429` | Superaste el límite gratuito: espera un minuto. |
 | `código 503` | El modelo está saturado: reintenta, o cambia `GEMINI_MODEL` en el `.env`. |
-| `ModuleNotFoundError` | Activa el entorno virtual y vuelve a correr `pip install -r requirements.txt`. |
+| `Could not find a version that satisfies the requirement ...` al instalar | El entorno se creó con un Python anterior a 3.12. Borra la carpeta `venv` y créala de nuevo con `python3.12 -m venv venv` (en Windows, `py -3.12 -m venv venv`). |
+| `ModuleNotFoundError` | El entorno no está activo o la instalación falló: actívalo y vuelve a correr `pip install -r requirements.txt`, revisando que termine sin errores. |
 
 ---
 
