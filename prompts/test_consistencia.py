@@ -16,30 +16,27 @@ sys.path.insert(0, str(CARPETA))
 sys.path.insert(0, str(CARPETA.parent / "src"))
 
 from banco import BANCO_DE_PROMPTS  # noqa: E402
-from consumir_gemini import armar_peticion, enviar_peticion, extraer_texto, parsear_respuesta_json  # noqa: E402
+from consumir_gemini import (  # noqa: E402
+    armar_peticion,
+    con_reintentos,
+    enviar_peticion,
+    extraer_texto,
+    parsear_respuesta_json,
+)
 
 INTENTOS = 3
 PAUSA_SEGUNDOS = 2
-ESPERAS_REINTENTO = [2, 4, 8]  # solo para errores de la API (429, 5xx o conexión)
 
 
 def pedir_con_reintentos(prompt):
-    """Devuelve el texto del modelo, reintentando si la API falla por saturación."""
-    for espera in ESPERAS_REINTENTO + [None]:
-        try:
-            url, headers, body = armar_peticion(
-                prompt["ejemplo_usuario"],
-                prompt["system_instruction"],
-                prompt.get("response_schema"),
-            )
-            respuesta = enviar_peticion(url, headers, body)
-            return extraer_texto(respuesta)
-        except RuntimeError as error:
-            mensaje = str(error)
-            reintentable = "429" in mensaje or "código 5" in mensaje or "No se pudo conectar" in mensaje
-            if espera is None or not reintentable:
-                raise
-            time.sleep(espera)
+    """Devuelve el texto del modelo; reintenta solo si la API falla por saturación o conexión."""
+    url, headers, body = armar_peticion(
+        prompt["ejemplo_usuario"],
+        prompt["system_instruction"],
+        prompt.get("response_schema"),
+    )
+    respuesta_json, _ = con_reintentos(lambda: enviar_peticion(url, headers, body))
+    return extraer_texto(respuesta_json)
 
 
 registro = {"fecha": date.today().isoformat(), "intentos_por_prompt": INTENTOS, "prompts": {}}

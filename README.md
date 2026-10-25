@@ -37,6 +37,7 @@ El diagrama del proyecto completo, con el lector de chat, el agente y la API pro
 * **`src/consumir_gemini.py`**: el módulo principal, con una función por responsabilidad:
   * `armar_peticion(pregunta, system_instruction, response_schema)`: valida la entrada y arma la petición, con la instrucción de sistema y el esquema JSON separados del mensaje del usuario.
   * `enviar_peticion(url, headers, body)`: hace el `POST` con un tiempo límite de 30 s y convierte cada falla en un mensaje claro.
+  * `con_reintentos(funcion)`: reintenta con espera creciente (2, 4 y 8 s) solo ante errores 429, 5xx o de conexión. Es la única lógica de reintentos del proyecto: los otros scripts la importan.
   * `extraer_texto(respuesta_json)`: navega la respuesta de Gemini hasta el texto generado.
   * `parsear_respuesta_json(texto, claves_esperadas)`: limpia el markdown, interpreta el JSON y valida que traiga las claves esperadas.
   * `calcular_costo(respuesta_json, precio_entrada, precio_salida)`: calcula el costo en USD desde `usageMetadata`, incluyendo los tokens de razonamiento.
@@ -170,12 +171,13 @@ El módulo **nunca se cae con un traceback ni falla en silencio**: cada error pr
 | **Pregunta vacía o que no es texto** | `armar_peticion`, antes de llamar a la API | `ValueError: La pregunta no puede estar vacía.` |
 | **Falta la llave en `.env`** | `armar_peticion` | `ValueError: No se encontró la variable API_KEY en el archivo .env.` |
 | **Sin conexión o sin respuesta en 30 s** | `enviar_peticion` (`ConnectionError`, `Timeout`) | `RuntimeError: No se pudo conectar con el servicio...` |
-| **Llave inválida, cuota excedida o servicio saturado** (400, 401, 429, 503) | `enviar_peticion` | `RuntimeError: El servicio respondió con un error (código ...)` |
+| **Llave inválida** (400, 401, 403) o **modelo inexistente** (404) | `enviar_peticion` | `RuntimeError: El servicio respondió con un error (código ...)`, sin reintentar |
+| **Cuota excedida o servicio saturado** (429, 5xx) | `enviar_peticion` + `con_reintentos` | Reintenta tras 2, 4 y 8 s; si sigue fallando, `RuntimeError` con el código |
 | **La respuesta no es JSON** | `enviar_peticion` (`JSONDecodeError`) | `RuntimeError: La respuesta del servicio no llegó en el formato esperado.` |
 | **La respuesta no trae el texto** | `extraer_texto` (`KeyError`, `IndexError`) | `RuntimeError: La respuesta no trae el texto generado...` |
 | **JSON con markdown, inválido o sin las claves esperadas** | `parsear_respuesta_json` | Limpia el markdown; si igual falla, `ValueError` con las claves que faltan. |
 
-Cada excepción conserva la causa técnica original (`raise ... from error`) para depurar, mientras el usuario ve un mensaje simple.
+Todas las funciones tienen docstring y *type hints*. Cada excepción conserva la causa técnica original (`raise ... from error`) para depurar, mientras el usuario ve un mensaje simple.
 
 ### Si algo falla al ejecutar
 
@@ -184,7 +186,7 @@ Cada excepción conserva la causa técnica original (`raise ... from error`) par
 | `No se encontró la variable API_KEY` | Crea el `.env` (paso 3) y revisa que la variable se llame exactamente `API_KEY`. |
 | `código 400` o `código 401` | La llave está incompleta o no es válida: vuelve a copiarla desde AI Studio. |
 | `código 429` | Superaste el límite gratuito: espera un minuto. |
-| `código 503` | El modelo está saturado: reintenta, o cambia `GEMINI_MODEL` en el `.env`. |
+| `código 503` | El modelo siguió saturado después de 3 reintentos: espera unos minutos o cambia `GEMINI_MODEL` en el `.env`. |
 | `Could not find a version that satisfies the requirement ...` al instalar | El entorno se creó con un Python anterior a 3.12. Borra la carpeta `venv` y créala de nuevo con `python3.12 -m venv venv` (en Windows, `py -3.12 -m venv venv`). |
 | `ModuleNotFoundError` | El entorno no está activo o la instalación falló: actívalo y vuelve a correr `pip install -r requirements.txt`, revisando que termine sin errores. |
 
@@ -225,13 +227,13 @@ python3 src/comparar_modelos.py
 ## 🗺️ 8. Hoja de ruta
 
 * **Gate 1 · Habilitación técnica (actual)**
-  * Módulo que consume la API de Gemini, con funciones separadas y manejo de errores.
+  * Módulo que consume la API de Gemini, con funciones separadas, manejo de errores y reintentos con espera creciente.
   * Prompt de sistema, salida JSON validada y banco de prompts con consistencia medida.
   * Elección del modelo con datos medidos y arquitectura documentada.
 * **Gate 2 · Integración y orquestación**
   * Lector del chat de Twitch en tiempo real.
   * Agente con herramientas: consultar los viewers en vivo, registrar las interacciones en el CRM y responder solo cuando corresponde.
-  * Links medibles conectados con el CRM, y reintentos con espera creciente ante la saturación del servicio.
+  * Links medibles conectados con el CRM.
 * **Gate 3 · Capstone**
   * API propia expuesta en un contenedor Docker, con documentación técnica y pruebas.
   * Reporte de impacto de la campaña para la marca.

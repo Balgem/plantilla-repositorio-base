@@ -13,7 +13,14 @@ import time
 from datetime import date
 from pathlib import Path
 
-from consumir_gemini import armar_peticion, enviar_peticion, extraer_texto, calcular_costo
+from consumir_gemini import (
+    ESPERAS_REINTENTO,
+    armar_peticion,
+    calcular_costo,
+    con_reintentos,
+    enviar_peticion,
+    extraer_texto,
+)
 
 # Precios en USD por millón de tokens, de https://ai.google.dev/gemini-api/docs/pricing
 # (consultados el 2026-10-20; la salida incluye los tokens de razonamiento).
@@ -65,7 +72,6 @@ MENSAJES = [
 
 REPETICIONES = 4
 PAUSA_SEGUNDOS = 4
-ESPERAS_REINTENTO = [2, 4, 8]  # backoff exponencial
 CARPETA_DOCS = Path(__file__).resolve().parent.parent / "docs"
 
 CODIGO = re.compile(r"código (\d{3})")
@@ -89,40 +95,36 @@ def promociona(texto):
     return "ejemplo.cl" in texto or "59.990" in texto
 
 
-def se_puede_reintentar(error):
-    codigo = CODIGO.search(str(error))
-    if codigo:
-        return codigo.group(1) == "429" or codigo.group(1).startswith("5")
-    return "No se pudo conectar" in str(error)
-
-
 def medir_con_reintentos(modelo, mensaje, precios):
+    """Envía un mensaje al modelo (con reintentos) y registra latencia, costo y respuesta."""
     os.environ["GEMINI_MODEL"] = modelo
-    intentos = 0
-    while True:
-        intentos += 1
-        try:
-            url, headers, body = armar_peticion(INSTRUCCION + mensaje)
-            inicio = time.perf_counter()
-            respuesta_json = enviar_peticion(url, headers, body)
-            latencia = time.perf_counter() - inicio
-            texto = extraer_texto(respuesta_json).strip()
-        except (ValueError, RuntimeError) as error:
-            if intentos <= len(ESPERAS_REINTENTO) and se_puede_reintentar(error):
-                time.sleep(ESPERAS_REINTENTO[intentos - 1])
-                continue
-            codigo = CODIGO.search(str(error))
-            return {"ok": False, "intentos": intentos, "error": codigo.group(1) if codigo else "conexión"}
-        uso = respuesta_json.get("usageMetadata", {})
-        costo = calcular_costo(respuesta_json, precios[0] / 1e6, precios[1] / 1e6) if precios else None
+
+    def peticion_medida():
+        inicio = time.perf_counter()
+        respuesta = enviar_peticion(url, headers, body)
+        return respuesta, time.perf_counter() - inicio
+
+    try:
+        url, headers, body = armar_peticion(INSTRUCCION + mensaje)
+        (respuesta_json, latencia), intentos = con_reintentos(peticion_medida)
+        texto = extraer_texto(respuesta_json).strip()
+    except (ValueError, RuntimeError) as error:
+        codigo = CODIGO.search(str(error))
         return {
-            "ok": True,
-            "intentos": intentos,
-            "latencia": latencia,
-            "costo": costo,
-            "texto": texto,
-            "razonamiento": uso.get("thoughtsTokenCount", 0),
+            "ok": False,
+            "intentos": getattr(error, "intentos", 1),
+            "error": codigo.group(1) if codigo else "conexión",
         }
+    uso = respuesta_json.get("usageMetadata", {})
+    costo = calcular_costo(respuesta_json, precios[0] / 1e6, precios[1] / 1e6) if precios else None
+    return {
+        "ok": True,
+        "intentos": intentos,
+        "latencia": latencia,
+        "costo": costo,
+        "texto": texto,
+        "razonamiento": uso.get("thoughtsTokenCount", 0),
+    }
 
 
 def evaluar_modelo(modelo, precios):
