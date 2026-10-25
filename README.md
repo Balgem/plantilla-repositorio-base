@@ -15,14 +15,10 @@ Las marcas que invierten en publicidad dentro de transmisiones en vivo **no tien
 ### Desafíos detectados
 1. **El chat se mueve demasiado rápido.** Las preguntas sobre el producto quedan enterradas entre reacciones, memes y spam.
 2. **Responder a mano no escala.** Un moderador no puede contestar cada pregunta con el precio y el link correctos.
-3. **Un bot genérico es un riesgo.** Un modelo de lenguaje sin control inventa precios, descuentos o promociones que la marca no ofrece.
+3. **Un bot genérico es un riesgo.** Un modelo sin control inventa precios, descuentos o promociones que la marca no ofrece.
 
 ### Propuesta
-Un módulo en Python que usa la API de Google Gemini para:
-- **Clasificar** cada mensaje del chat (`pregunta_producto`, `interes_compra`, `spam` u `otro`) y decidir si el bot debe responder.
-- **Responder** solo con los datos de la campaña activa, reconociendo lo que no sabe en vez de inventarlo.
-- **Resumir** el chat para el reporte a la marca, con las preguntas frecuentes y el nivel de interés.
-- **Medir** el costo en USD de cada interacción.
+Un módulo en Python que usa la API de Google Gemini para **clasificar** cada mensaje del chat, **responder** solo con los datos de la campaña (reconociendo lo que no sabe en vez de inventarlo), **resumir** el chat para el reporte a la marca y **medir** el costo en USD de cada interacción.
 
 ---
 
@@ -30,67 +26,51 @@ Un módulo en Python que usa la API de Google Gemini para:
 
 ![Diagrama de arquitectura del módulo](docs/diagrama.png)
 
-El diagrama del proyecto completo, con el lector de chat, el agente y la API propia de los próximos Gates, está en [`docs/diagrama_proyecto_banner.drawio`](docs/diagrama_proyecto_banner.drawio) (se abre en [app.diagrams.net](https://app.diagrams.net)).
-
-### Componentes
-
+### Componentes principales
 * **`src/consumir_gemini.py`**: el módulo principal, con una función por responsabilidad:
-  * `armar_peticion(pregunta, system_instruction, response_schema)`: valida la entrada y arma la petición, con la instrucción de sistema y el esquema JSON separados del mensaje del usuario.
-  * `enviar_peticion(url, headers, body)`: hace el `POST` con un tiempo límite de 30 s y convierte cada falla en un mensaje claro.
-  * `con_reintentos(funcion)`: reintenta con espera creciente (2, 4 y 8 s) solo ante errores 429, 5xx o de conexión. Es la única lógica de reintentos del proyecto: los otros scripts la importan.
-  * `extraer_texto(respuesta_json)`: navega la respuesta de Gemini hasta el texto generado.
-  * `parsear_respuesta_json(texto, claves_esperadas)`: limpia el markdown, interpreta el JSON y valida que traiga las claves esperadas.
-  * `calcular_costo(respuesta_json, precio_entrada, precio_salida)`: calcula el costo en USD desde `usageMetadata`, incluyendo los tokens de razonamiento.
-* **`src/comparar_modelos.py`**: mide 9 modelos de Gemini por costo, latencia, calidad y disponibilidad.
-* **`prompts/banco.py`**: el banco de prompts del bot, cada uno con su instrucción de sistema y su esquema JSON.
-* **`prompts/test_consistencia.py`**: prueba cada prompt varias veces contra la API real y registra cuántas respuestas fueron válidas.
+  * `armar_peticion(...)`: valida la entrada y arma la petición con `systemInstruction` y `responseSchema`.
+  * `enviar_peticion(...)`: hace el `POST` con timeout y convierte cada falla en un mensaje claro.
+  * `con_reintentos(...)`: reintenta con espera creciente ante saturación (429, 5xx) o falta de conexión.
+  * `extraer_texto(...)`: navega la respuesta de Gemini hasta el texto generado.
+  * `parsear_respuesta_json(...)`: limpia el markdown y valida que el JSON traiga las claves esperadas.
+  * `calcular_costo(...)`: calcula el costo en USD desde `usageMetadata`, incluidos los tokens de razonamiento.
+* **`src/comparar_modelos.py`**: mide modelos de Gemini por costo, latencia, calidad y disponibilidad.
+* **`prompts/banco.py`** y **`prompts/test_consistencia.py`**: el banco de prompts del bot y su prueba de consistencia.
+* **`docs/decision-arquitectura.md`**: la elección del modelo, con la comparación completa y las alternativas descartadas.
 
-### 📊 Elección del modelo, con datos medidos
+### 📊 Comparación de modelos (medida el 2026-10-20)
 
-Se compararon 9 modelos con 8 mensajes de chat reales y 4 repeticiones para la latencia (2026-10-20). Estos son los 5 que respondieron de forma confiable:
+| Modelo | Latencia mediana | Costo por 10.000 mensajes | Clasificación correcta |
+| :--- | :--- | :--- | :--- |
+| **`gemini-3.5-flash-lite`** ✅ | **1,95 s** | **1,32 USD** | 8 de 8 |
+| `gemini-3.1-flash-lite` | 6,31 s | 0,84 USD | 8 de 8 |
+| `gemini-3-flash-preview` | 3,63 s | 12,65 USD | 8 de 8 |
+| `gemini-3.6-flash` | 4,98 s | 24,94 USD | 8 de 8 |
+| `gemini-3.8-flash` | 10,45 s | 24,20 USD | 8 de 8 |
 
-| Modelo | Latencia mediana | Costo por 10.000 mensajes | Tokens de razonamiento | Clasificación correcta |
-| :--- | :--- | :--- | :--- | :--- |
-| **`gemini-3.5-flash-lite`** ✅ | **1,95 s** | **1,32 USD** | 0 | 8 de 8 |
-| `gemini-3.1-flash-lite` | 6,31 s | 0,84 USD | 0 | 8 de 8 |
-| `gemini-3-flash-preview` | 3,63 s | 12,65 USD | 368 | 8 de 8 |
-| `gemini-3.6-flash` | 4,98 s | 24,94 USD | 605 | 8 de 8 |
-| `gemini-3.8-flash` | 10,45 s | 24,20 USD | 587 | 8 de 8 |
-
-**Se eligió `gemini-3.5-flash-lite`** porque en un chat en vivo la velocidad pesa más que una diferencia mínima de costo: fue el más rápido de los 9, respondió el 100 % de las peticiones al primer intento y ante una pregunta sin respuesta en los datos de la campaña dijo explícitamente que no tenía esa información. La justificación completa, las alternativas descartadas y los hallazgos están en [`docs/decision-arquitectura.md`](docs/decision-arquitectura.md), y los resultados con todas las respuestas, en [`docs/comparacion_modelos.md`](docs/comparacion_modelos.md).
+**Se eligió `gemini-3.5-flash-lite`**: en un chat en vivo la velocidad pesa más que una diferencia mínima de costo, y fue el más rápido sin inventar datos de la campaña.
 
 ---
 
 ## ⚡ 3. Instalación
 
 ### Requisitos
-* **Python 3.12+** y **Git**. Las dependencias no se instalan en versiones anteriores.
-  * **En macOS, `python3` a secas suele ser el Python 3.9 del sistema.** Por eso los comandos usan `python3.12`. Si no lo tienes, instálalo con `brew install python@3.12` o desde [python.org](https://www.python.org/downloads/).
-* Una **API key de Gemini**. Es gratuita y no pide tarjeta: se crea en [Google AI Studio](https://aistudio.google.com/apikey).
+* **Python 3.12+** y **Git**. En macOS, `python3` suele ser el Python 3.9 del sistema: instala 3.12 con `brew install python@3.12`.
+* Una **API key de Gemini**, gratuita en [Google AI Studio](https://aistudio.google.com/apikey).
 
 ### Paso 1: Clonar y crear el entorno virtual
-
-**macOS / Linux / WSL**
 ```bash
 git clone https://github.com/Balgem/plantilla-repositorio-base.git
 cd plantilla-repositorio-base
+
+# macOS / Linux:
 python3.12 -m venv venv
 source venv/bin/activate
-python3 --version   # debe decir Python 3.12 o superior
-```
 
-**Windows (PowerShell)**
-```powershell
-git clone https://github.com/Balgem/plantilla-repositorio-base.git
-cd plantilla-repositorio-base
-python -m venv venv
+# Windows (PowerShell):
+py -3.12 -m venv venv
 .\venv\Scripts\Activate.ps1
-python --version   # debe decir Python 3.12 o superior
 ```
-
-Si `python --version` muestra una versión menor, borra la carpeta `venv` y créala de nuevo con `py -3.12 -m venv venv`.
-
-Si PowerShell no permite activar el entorno, ejecuta una vez `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 
 ### Paso 2: Instalar las dependencias
 ```bash
@@ -98,50 +78,39 @@ pip install -r requirements.txt
 ```
 
 ### Paso 3: Configurar las variables de entorno
-Crea tu `.env` a partir de la plantilla (`cp .env.example .env` en macOS/Linux, o `Copy-Item .env.example .env` en Windows) y completa tu llave:
-
+```bash
+cp .env.example .env
+```
+Edita `.env` y completa tu llave (el archivo está en `.gitignore`, así que nunca se sube):
 ```ini
 API_KEY=tu_llave_de_gemini
 GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-| Variable | Obligatoria | Descripción |
-| :--- | :--- | :--- |
-| `API_KEY` | Sí | Tu API key de Gemini, sin comillas ni espacios alrededor del `=`. |
-| `GEMINI_MODEL` | No | Modelo a usar. Por defecto, `gemini-3.5-flash-lite`. |
-
-El archivo `.env` está excluido en `.gitignore`: tu llave nunca se sube al repositorio.
-
 ---
 
 ## 🚀 4. Uso
 
-Con el entorno activo y desde la raíz del repositorio (en Windows, usa `python` en vez de `python3`):
-
+Con el entorno activo, desde la raíz del repositorio:
 ```bash
 python3 src/consumir_gemini.py
 ```
 
 ### Salida esperada
-El texto del modelo varía en cada ejecución. El primer mensaje de error es intencional: demuestra la validación de una entrada vacía.
-
 ```text
 --- Entrada vacía ---
 No se pudo completar la operación: La pregunta no puede estar vacía.
 --- Entrada válida, sin instrucción de sistema ---
-¡Conexión establecida y funcionando!
+¡Conexión confirmada y funcionando!
 --- Mensajes del chat, con la instrucción del bot como sistema ---
 > cuánto cuesta el teclado??
-pregunta_producto | El teclado mecánico K7 cuesta 59.990 CLP. Cómpralo aquí: https://ejemplo.cl/r/k7
+pregunta_producto | ¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Pídelo acá: https://ejemplo.cl/r/k7
 > hacen envíos a regiones?
 pregunta_producto | No tengo esa información, revisa el link https://ejemplo.cl/r/k7
 ```
 
-### Ejemplo de salida JSON estructurada
-Con los prompts del banco, la respuesta llega como un objeto JSON validado. Estas son respuestas reales de la prueba de consistencia:
-
-**Entrada (mensaje del chat):** `"hacen envíos a regiones?"`
-
+### Ejemplo de salida JSON (prompt `responder_viewer`)
+**Entrada:** `"hacen envíos a regiones?"`
 ```json
 {
   "respuesta": "No tengo información sobre envíos a regiones, te sugiero revisar el link https://ejemplo.cl/r/k7",
@@ -150,109 +119,46 @@ Con los prompts del banco, la respuesta llega como un objeto JSON validado. Esta
 }
 ```
 
-**Entrada:** `"cuánto cuesta el teclado que estás usando?? 👀"`
-
-```json
-{
-  "categoria": "pregunta_producto",
-  "confianza": 0.98,
-  "debe_responder": true
-}
-```
+### ⚠️ Alcance (Gate 1)
+* **Qué SÍ hace:**
+  * ✅ Clasifica mensajes del chat y responde solo con los datos de la campaña.
+  * ✅ Entrega salidas JSON validadas con `responseSchema`.
+  * ✅ Valida la entrada antes de llamar a la API y maneja los errores de red, cuota y formato.
+  * ✅ Calcula el costo en USD de cada petición.
+* **Qué NO hace todavía:**
+  * ❌ No se conecta al chat de Twitch en vivo (Gate 2).
+  * ❌ No registra las interacciones en una base de datos ni en un CRM (Gate 2).
+  * ❌ No expone una API propia ni corre en un contenedor (Gate 3).
 
 ---
 
 ## 🛡️ 5. Manejo de errores
 
-El módulo **nunca se cae con un traceback ni falla en silencio**: cada error previsible se convierte en un mensaje claro.
-
 | Escenario | Dónde se controla | Respuesta |
 | :--- | :--- | :--- |
-| **Pregunta vacía o que no es texto** | `armar_peticion`, antes de llamar a la API | `ValueError: La pregunta no puede estar vacía.` |
-| **Falta la llave en `.env`** | `armar_peticion` | `ValueError: No se encontró la variable API_KEY en el archivo .env.` |
-| **Sin conexión o sin respuesta en 30 s** | `enviar_peticion` (`ConnectionError`, `Timeout`) | `RuntimeError: No se pudo conectar con el servicio...` |
-| **Llave inválida** (400, 401, 403) o **modelo inexistente** (404) | `enviar_peticion` | `RuntimeError: El servicio respondió con un error (código ...)`, sin reintentar |
-| **Cuota excedida o servicio saturado** (429, 5xx) | `enviar_peticion` + `con_reintentos` | Reintenta tras 2, 4 y 8 s; si sigue fallando, `RuntimeError` con el código |
-| **La respuesta no es JSON** | `enviar_peticion` (`JSONDecodeError`) | `RuntimeError: La respuesta del servicio no llegó en el formato esperado.` |
-| **La respuesta no trae el texto** | `extraer_texto` (`KeyError`, `IndexError`) | `RuntimeError: La respuesta no trae el texto generado...` |
-| **JSON con markdown, inválido o sin las claves esperadas** | `parsear_respuesta_json` | Limpia el markdown; si igual falla, `ValueError` con las claves que faltan. |
-
-Todas las funciones tienen docstring y *type hints*. Cada excepción conserva la causa técnica original (`raise ... from error`) para depurar, mientras el usuario ve un mensaje simple.
-
-### Si algo falla al ejecutar
-
-| Mensaje | Qué hacer |
-| :--- | :--- |
-| `No se encontró la variable API_KEY` | Crea el `.env` (paso 3) y revisa que la variable se llame exactamente `API_KEY`. |
-| `código 400` o `código 401` | La llave está incompleta o no es válida: vuelve a copiarla desde AI Studio. |
-| `código 429` | Superaste el límite gratuito: espera un minuto. |
-| `código 503` | El modelo siguió saturado después de 3 reintentos: espera unos minutos o cambia `GEMINI_MODEL` en el `.env`. |
-| `Could not find a version that satisfies the requirement ...` al instalar | El entorno se creó con un Python anterior a 3.12. Borra la carpeta `venv` y créala de nuevo con `python3.12 -m venv venv` (en Windows, `py -3.12 -m venv venv`). |
-| `ModuleNotFoundError` | El entorno no está activo o la instalación falló: actívalo y vuelve a correr `pip install -r requirements.txt`, revisando que termine sin errores. |
+| **Entrada vacía** o falta `API_KEY` | `armar_peticion` | `ValueError` antes de llamar a la API |
+| **Sin conexión o timeout** | `enviar_peticion` | `RuntimeError: No se pudo conectar con el servicio...` |
+| **Llave inválida** (400, 401, 403) | `enviar_peticion` | `RuntimeError` con el código, sin reintentar |
+| **Cuota o saturación** (429, 5xx) | `con_reintentos` | Reintenta tras 2, 4 y 8 s; si sigue fallando, `RuntimeError` |
+| **Respuesta sin texto o JSON inválido** | `extraer_texto`, `parsear_respuesta_json` | `RuntimeError` / `ValueError` con lo que falta |
 
 ---
 
 ## 🗂️ 6. Banco de prompts y consistencia
 
-La carpeta `prompts/` tiene los prompts del bot, cada uno con su instrucción de sistema y un esquema JSON que la API aplica al generar la respuesta (`responseSchema`):
-
-| Prompt | Qué hace | Salida JSON | Consistencia |
-| :--- | :--- | :--- | :--- |
-| **`clasificar_mensaje`** | Clasifica un mensaje del chat y decide si el bot responde | `categoria`, `confianza`, `debe_responder` | 3/3 ✅ |
-| **`responder_viewer`** | Responde con los datos de la campaña y reconoce lo que no sabe | `respuesta`, `incluye_link`, `dato_desconocido` | 3/3 ✅ |
-| **`resumir_chat`** | Resume un lote de mensajes para el reporte a la marca | `resumen`, `preguntas_frecuentes`, `nivel_interes` | 3/3 ✅ |
+1. **`clasificar_mensaje`**: clasifica el mensaje y decide si el bot responde.
+2. **`responder_viewer`**: responde con los datos de la campaña y reconoce lo que no sabe.
+3. **`resumir_chat`**: resume un lote de mensajes para el reporte a la marca.
 
 ```bash
 python3 prompts/test_consistencia.py
 ```
-
-El script ejecuta cada prompt 3 veces contra la API real y guarda el resultado en [`prompts/registro_resultados.json`](prompts/registro_resultados.json). En dos corridas completas, las **18 respuestas fueron válidas** y con la estructura correcta.
-
-Para repetir la comparación de modelos (unos 15 minutos, unas 100 peticiones):
-
-```bash
-python3 src/comparar_modelos.py
-```
+Ejecuta cada prompt 3 veces contra la API real y guarda el resultado en `prompts/registro_resultados.json`, con una **consistencia de 3/3** en los tres prompts.
 
 ---
 
-## 🔐 7. Seguridad
+## 🗺️ 7. Hoja de ruta
 
-- La llave vive solo en `.env`, excluido en `.gitignore`, y viaja en el header `x-goog-api-key`, nunca en la URL ni en el código.
-- `.env.example` documenta las variables sin ningún valor real.
-- El historial completo del repositorio fue revisado: `.env` nunca se subió y no hay ninguna llave en ningún commit.
-
----
-
-## 🗺️ 8. Hoja de ruta
-
-* **Gate 1 · Habilitación técnica (actual)**
-  * Módulo que consume la API de Gemini, con funciones separadas, manejo de errores y reintentos con espera creciente.
-  * Prompt de sistema, salida JSON validada y banco de prompts con consistencia medida.
-  * Elección del modelo con datos medidos y arquitectura documentada.
-* **Gate 2 · Integración y orquestación**
-  * Lector del chat de Twitch en tiempo real.
-  * Agente con herramientas: consultar los viewers en vivo, registrar las interacciones en el CRM y responder solo cuando corresponde.
-  * Links medibles conectados con el CRM.
-* **Gate 3 · Capstone**
-  * API propia expuesta en un contenedor Docker, con documentación técnica y pruebas.
-  * Reporte de impacto de la campaña para la marca.
-
----
-
-## 📋 9. Registro de los ensayos de instalación limpia
-
-### Ensayo 2 · macOS (2026-10-25)
-
-- **Entorno:** MacBook con chip Apple, macOS 14, zsh. Clon nuevo en una carpeta aparte, siguiendo solo este README.
-- **Encontrado:** en macOS, `python3` a secas es el Python 3.9 del sistema. El entorno se creó con 3.9 y `pip install -r requirements.txt` falló (`Could not find a version that satisfies the requirement annotated-types==0.8.0`), así que después faltaba `requests`.
-- **Corregido:** el README ahora exige Python 3.12, crea el entorno con `python3.12 -m venv venv`, explica cómo instalarlo con Homebrew y agrega el error a la tabla de problemas frecuentes.
-- **Resultado:** Python 3.12, las 26 dependencias instaladas sin errores, `git status` del clon limpio (el `.env` no aparece) y una corrida real con la API sin ningún traceback.
-
-### Ensayo 1 · Nube (2026-10-22)
-
-- **Entorno:** contenedor Linux en la nube, sin nada instalado previamente; Python 3.13.
-- **Pasos:** clonar desde GitHub, crear un entorno virtual nuevo, `pip install -r requirements.txt`, `cp .env.example .env` y ejecutar `src/consumir_gemini.py`.
-- **Encontrado:** `.env.example` traía `GEMINI_MODEL=gemini-3.6-flash`, el modelo que la decisión de arquitectura descartó. Quien siguiera las instrucciones habría usado un modelo unas 19 veces más caro y más lento.
-- **Corregido:** `.env.example` ahora trae `gemini-3.5-flash-lite`, y el README explica cada variable.
-- **Resultado:** la instalación termina sin errores, `git status` del clon no muestra el `.env`, y el programa corre de principio a fin sin ningún traceback. Sin una llave válida, cada petición muestra un mensaje controlado en vez de cortar el programa.
+* **Gate 1 · Habilitación técnica (actual):** módulo de consumo de Gemini, salida JSON validada, banco de prompts y elección del modelo con datos medidos.
+* **Gate 2 · Integración y orquestación:** lector del chat de Twitch en tiempo real y un agente con herramientas para consultar los viewers y registrar las interacciones en el CRM.
+* **Gate 3 · Capstone:** API propia en un contenedor Docker, con pruebas y un reporte de impacto para la marca.
