@@ -54,8 +54,10 @@ def registrar_costo(respuesta_json: dict) -> float:
     costo = calcular_costo(respuesta_json, precios[0] / 1_000_000, precios[1] / 1_000_000)
     costo_total_sesion += costo
     print(
-        f"Operación: {uso.get('totalTokenCount', 0)} tokens, costo estimado: ${costo:.6f} "
-        f"(acumulado: ${costo_total_sesion:.6f})"
+        f"Operación: {uso.get('totalTokenCount', 0)} tokens "
+        f"(entrada {uso.get('promptTokenCount', 0)}, salida {uso.get('candidatesTokenCount', 0)}, "
+        f"razonamiento {uso.get('thoughtsTokenCount', 0)}), "
+        f"costo: ${costo:.6f} (acumulado: ${costo_total_sesion:.6f})"
     )
     return costo
 
