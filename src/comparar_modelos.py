@@ -108,7 +108,7 @@ def medir_con_reintentos(modelo, mensaje, precios):
         url, headers, body = armar_peticion(INSTRUCCION + mensaje)
         (respuesta_json, latencia), intentos = con_reintentos(peticion_medida)
         texto = extraer_texto(respuesta_json).strip()
-    except (ValueError, RuntimeError) as error:
+    except (ValueError, RuntimeError, TimeoutError) as error:
         codigo = CODIGO.search(str(error))
         return {
             "ok": False,

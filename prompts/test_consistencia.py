@@ -16,27 +16,11 @@ sys.path.insert(0, str(CARPETA))
 sys.path.insert(0, str(CARPETA.parent / "src"))
 
 from banco import BANCO_DE_PROMPTS  # noqa: E402
-from consumir_gemini import (  # noqa: E402
-    armar_peticion,
-    con_reintentos,
-    enviar_peticion,
-    extraer_texto,
-    parsear_respuesta_json,
-)
+from cliente import consultar_modelo  # noqa: E402
+from consumir_gemini import parsear_respuesta_json  # noqa: E402
 
 INTENTOS = 3
 PAUSA_SEGUNDOS = 2
-
-
-def pedir_con_reintentos(prompt):
-    """Devuelve el texto del modelo; reintenta solo si la API falla por saturación o conexión."""
-    url, headers, body = armar_peticion(
-        prompt["ejemplo_usuario"],
-        prompt["system_instruction"],
-        prompt.get("response_schema"),
-    )
-    respuesta_json, _ = con_reintentos(lambda: enviar_peticion(url, headers, body))
-    return extraer_texto(respuesta_json)
 
 
 registro = {"fecha": date.today().isoformat(), "intentos_por_prompt": INTENTOS, "prompts": {}}
@@ -46,7 +30,11 @@ for prompt in BANCO_DE_PROMPTS:
     fallos = []
     for intento in range(INTENTOS):
         try:
-            texto = pedir_con_reintentos(prompt)
+            texto = consultar_modelo(
+                prompt["ejemplo_usuario"],
+                prompt["system_instruction"],
+                prompt.get("response_schema"),
+            )
             datos = parsear_respuesta_json(texto, prompt["claves_esperadas"])
             exitos += 1
             print(f"  intento {intento + 1}: {json.dumps(datos, ensure_ascii=False)}")

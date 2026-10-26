@@ -14,11 +14,13 @@ Responder a mano no escala, y poner un modelo de lenguaje a responder sin contro
 
 ![Diagrama del módulo](docs/diagrama.png)
 
-Todo el consumo de la API está en `src/consumir_gemini.py`, separado en funciones chicas:
+El resto del proyecto usa una sola función, `consultar_modelo` (en `src/cliente.py`): le pasas el mensaje y te devuelve la respuesta, con los reintentos y el manejo de errores funcionando por dentro.
+
+Por dentro, el consumo de la API está en `src/consumir_gemini.py`, separado en funciones chicas:
 
 - `armar_peticion` valida el mensaje y arma la petición (con la instrucción de sistema y el esquema JSON cuando corresponde).
-- `enviar_peticion` hace el POST con timeout y transforma los errores de red o del servicio en mensajes entendibles.
-- `con_reintentos` vuelve a intentar cuando Gemini está saturado (429 o 5xx), esperando 2, 4 y 8 segundos.
+- `enviar_peticion` hace el POST con timeout y clasifica los errores: `ValueError` si la llave es inválida (eso no se arregla reintentando) y `TimeoutError` si es límite de uso, saturación o falta de conexión.
+- `con_reintentos` vuelve a intentar solo ante un `TimeoutError`, esperando 2, 4 y 8 segundos.
 - `extraer_texto` saca el texto de la respuesta.
 - `parsear_respuesta_json` limpia el JSON y revisa que traiga las claves que espero.
 - `calcular_costo` calcula cuánto costó la petición a partir de los tokens.
@@ -79,17 +81,17 @@ El `.env` está en el `.gitignore`, así que la llave nunca se sube al repo.
 Con el entorno activo:
 
 ```bash
-python3 src/consumir_gemini.py
+python3 src/cliente.py
 ```
 
 Debería salir algo así (el texto cambia un poco en cada corrida):
 
 ```text
 --- Entrada vacía ---
-No se pudo completar la operación: La pregunta no puede estar vacía.
---- Entrada válida, sin instrucción de sistema ---
-¡Conexión confirmada y funcionando!
---- Mensajes del chat, con la instrucción del bot como sistema ---
+Error de configuración: La pregunta no puede estar vacía.
+--- Consulta normal ---
+Santiago es la capital de Chile.
+--- Mensajes del chat, con la instrucción del bot ---
 > cuánto cuesta el teclado??
 pregunta_producto | ¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Pídelo acá: https://ejemplo.cl/r/k7
 > hacen envíos a regiones?
@@ -121,12 +123,12 @@ La idea es que el programa nunca se caiga con un traceback; cada error termina e
 | Qué pasa | Dónde se maneja | Qué hace |
 | --- | --- | --- |
 | Mensaje vacío o falta la `API_KEY` | `armar_peticion` | `ValueError` antes de llamar a la API |
-| Sin internet o timeout | `enviar_peticion` | `RuntimeError` avisando que no se pudo conectar |
-| Llave inválida (400, 401, 403) | `enviar_peticion` | `RuntimeError` con el código, sin reintentar |
-| Gemini saturado (429, 5xx) | `con_reintentos` | Reintenta 3 veces; si sigue fallando, `RuntimeError` |
+| Llave inválida (400 de llave inválida, 401, 403) | `enviar_peticion` | `ValueError` de inmediato, sin reintentar |
+| Límite de uso, saturación (429, 5xx), sin internet o timeout | `enviar_peticion` + `con_reintentos` | `TimeoutError` y reintenta 3 veces |
+| Se agotaron los reintentos | `consultar_modelo` | `RuntimeError: El servicio no respondió tras varios intentos.` |
 | Respuesta sin texto o JSON mal formado | `extraer_texto`, `parsear_respuesta_json` | Error indicando qué faltó |
 
-Los 503 fueron bastante frecuentes durante las pruebas, por eso agregué los reintentos.
+Los 503 fueron bastante frecuentes durante las pruebas, por eso agregué los reintentos. Un detalle que descubrí: con una llave inválida, Gemini no responde 401 sino 400 (`API_KEY_INVALID`), así que ese caso también se trata como error de credencial.
 
 ## 🗂️ Prompts
 

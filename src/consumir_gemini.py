@@ -3,8 +3,8 @@
 Arma la petición, la envía, extrae el texto generado, valida la salida JSON y
 calcula el costo. La llave se lee del archivo .env y viaja en el header, nunca en la URL.
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 src/consumir_gemini.py
+Son las piezas internas del cliente: el punto de entrada para el resto del proyecto
+es consultar_modelo, en src/cliente.py.
 """
 import json
 import os
@@ -63,45 +63,46 @@ def armar_peticion(
 
 
 def enviar_peticion(url: str, headers: dict, body: dict) -> dict:
-    """Envía la petición POST (timeout de 30 s) y devuelve la respuesta como diccionario.
+    """Envía la petición POST (timeout de 30 s) y clasifica los errores según si conviene reintentar.
 
-    Lanza RuntimeError si no hay conexión, si el servicio responde con un código 4xx o 5xx,
-    o si la respuesta no es JSON.
+    - ValueError: credencial inválida o sin permiso (400 por llave inválida, 401, 403). No se reintenta.
+    - TimeoutError: límite de uso (429), falla del proveedor (5xx) o sin conexión. Se reintenta.
+    - RuntimeError: cualquier otro error de la petición o una respuesta que no es JSON.
     """
     try:
         respuesta = requests.post(url, headers=headers, json=body, timeout=30)
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
-        raise RuntimeError("No se pudo conectar con el servicio. Intenta de nuevo en unos segundos.") from error
+        raise TimeoutError("No se pudo contactar al proveedor. Puede ser momentáneo.") from error
+    codigo = respuesta.status_code
+    llave_invalida = codigo == 400 and "API_KEY_INVALID" in respuesta.text
+    if codigo in (401, 403) or llave_invalida:
+        raise ValueError("Credencial inválida o sin permiso. Revisa tu API_KEY en el archivo .env.")
+    if codigo == 429 or codigo >= 500:
+        raise TimeoutError(f"El proveedor no pudo procesar la petición (código {codigo}). Hay que esperar y reintentar.")
     if not respuesta.ok:
-        raise RuntimeError(f"El servicio respondió con un error (código {respuesta.status_code}).")
+        raise RuntimeError(f"El servicio respondió con un error (código {codigo}).")
     try:
         return respuesta.json()
     except requests.exceptions.JSONDecodeError as error:
         raise RuntimeError("La respuesta del servicio no llegó en el formato esperado.") from error
 
 
-def es_error_reintentable(error: Exception) -> bool:
-    """Indica si vale la pena reintentar: saturación (429), falla del servicio (5xx) o sin conexión."""
-    mensaje = str(error)
-    codigo = re.search(r"código (\d{3})", mensaje)
-    if codigo:
-        return codigo.group(1) == "429" or codigo.group(1).startswith("5")
-    return "No se pudo conectar" in mensaje
-
-
 def con_reintentos(funcion: Callable[[], Any], esperas: tuple[int, ...] = ESPERAS_REINTENTO) -> tuple[Any, int]:
-    """Ejecuta funcion() y la reintenta con espera creciente ante errores reintentables.
+    """Ejecuta funcion() y la reintenta con espera creciente solo si lanza TimeoutError.
 
-    Devuelve (resultado, intentos). Si se agotan los reintentos o el error no es reintentable,
-    relanza el RuntimeError con el atributo `intentos` para saber cuántas veces se probó.
+    Un ValueError (credencial inválida) u otro error se propaga de inmediato, sin reintentar.
+    Devuelve (resultado, intentos). Si se agotan los reintentos, relanza el TimeoutError
+    con el atributo `intentos` para saber cuántas veces se probó.
     """
+    total = len(esperas) + 1
     for intento, espera in enumerate([*esperas, None], start=1):
         try:
             return funcion(), intento
-        except RuntimeError as error:
-            if espera is None or not es_error_reintentable(error):
+        except TimeoutError as error:
+            if espera is None:
                 error.intentos = intento
                 raise
+            print(f"Intento {intento} de {total} falló por límite de uso o saturación. Reintentando en {espera} s...")
             time.sleep(espera)
     raise AssertionError("inalcanzable")
 
@@ -151,29 +152,3 @@ def calcular_costo(respuesta_json: dict, precio_entrada: float, precio_salida: f
     except KeyError as error:
         raise RuntimeError("La respuesta no trae el conteo de tokens esperado.") from error
     return (tokens_entrada * precio_entrada) + (tokens_salida * precio_salida)
-
-
-def preguntar_a_gemini(pregunta: str, system_instruction: str | None = None) -> str:
-    """Hace el recorrido completo (armar, enviar con reintentos, extraer) y devuelve el texto."""
-    url, headers, body = armar_peticion(pregunta, system_instruction)
-    respuesta_json, _ = con_reintentos(lambda: enviar_peticion(url, headers, body))
-    return extraer_texto(respuesta_json)
-
-
-def mostrar_respuesta(pregunta: str, system_instruction: str | None = None) -> None:
-    """Imprime la respuesta del modelo o un mensaje claro si algo falla, sin cortar el programa."""
-    try:
-        print(preguntar_a_gemini(pregunta, system_instruction))
-    except (ValueError, RuntimeError) as error:
-        print("No se pudo completar la operación:", error)
-
-
-if __name__ == "__main__":
-    print("--- Entrada vacía ---")
-    mostrar_respuesta("")
-    print("--- Entrada válida, sin instrucción de sistema ---")
-    mostrar_respuesta("Confirma en una frase corta que esta conexión funciona")
-    print("--- Mensajes del chat, con la instrucción del bot como sistema ---")
-    for mensaje in ["cuánto cuesta el teclado??", "hacen envíos a regiones?"]:
-        print(f"> {mensaje}")
-        mostrar_respuesta(mensaje, INSTRUCCION_BOT)
