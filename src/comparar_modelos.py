@@ -14,7 +14,6 @@ from datetime import date
 from pathlib import Path
 
 from consumir_gemini import (
-    ESPERAS_REINTENTO,
     armar_peticion,
     calcular_costo,
     con_reintentos,
@@ -208,7 +207,7 @@ def generar_markdown(resultados, fecha):
     lineas += [
         f"Generado con `src/comparar_modelos.py`: {REPETICIONES} repeticiones del mismo mensaje "
         f"para la latencia y {len(MENSAJES)} mensajes de chat para la calidad, con reintentos "
-        f"de espera creciente ({', '.join(map(str, ESPERAS_REINTENTO))} s) ante errores 429, 5xx o de conexión. "
+        f"de espera creciente (2, 4 y 8 s) ante errores 429, 5xx o de conexión. "
         "Precios de https://ai.google.dev/gemini-api/docs/pricing consultados el 2026-10-20.",
         "",
     ]

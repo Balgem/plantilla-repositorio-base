@@ -14,13 +14,13 @@ Responder a mano no escala, y poner un modelo de lenguaje a responder sin contro
 
 ![Diagrama del módulo](docs/diagrama.png)
 
-El resto del proyecto usa una sola función, `consultar_modelo` (en `src/cliente.py`): le pasas el mensaje y te devuelve la respuesta, con los reintentos y el manejo de errores funcionando por dentro.
+El resto del proyecto usa una sola función, `consultar_modelo` (en `src/cliente.py`): le pasas el mensaje y te devuelve la respuesta, con los reintentos, el manejo de errores y el registro de costo funcionando por dentro. Cada consulta exitosa muestra cuántos tokens usó, cuánto costó y el total acumulado de la sesión (`registrar_costo`, con los precios reales del modelo).
 
 Por dentro, el consumo de la API está en `src/consumir_gemini.py`, separado en funciones chicas:
 
 - `armar_peticion` valida el mensaje y arma la petición (con la instrucción de sistema y el esquema JSON cuando corresponde).
 - `enviar_peticion` hace el POST con timeout y clasifica los errores: `ValueError` si la llave es inválida (eso no se arregla reintentando) y `TimeoutError` si es límite de uso, saturación o falta de conexión.
-- `con_reintentos` vuelve a intentar solo ante un `TimeoutError`, esperando 2, 4 y 8 segundos.
+- `con_reintentos` vuelve a intentar solo ante un `TimeoutError`, con backoff exponencial (2, 4 y 8 segundos, nunca más de 30) y un poco de azar (jitter) para no reintentar todos al mismo tiempo.
 - `extraer_texto` saca el texto de la respuesta.
 - `parsear_respuesta_json` limpia el JSON y revisa que traiga las claves que espero.
 - `calcular_costo` calcula cuánto costó la petición a partir de los tokens.

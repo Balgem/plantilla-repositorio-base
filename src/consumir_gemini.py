@@ -8,6 +8,7 @@ es consultar_modelo, en src/cliente.py.
 """
 import json
 import os
+import random
 import re
 import time
 from collections.abc import Callable
@@ -28,7 +29,11 @@ INSTRUCCION_BOT = (
     "'categoria | respuesta breve para el chat'."
 )
 
-ESPERAS_REINTENTO = (2, 4, 8)  # segundos entre reintentos (backoff exponencial)
+# Reintentos: 4 intentos en total, con esperas de 2, 4 y 8 s (backoff exponencial),
+# nunca más de 30 s, más hasta un 10 % al azar (jitter).
+INTENTOS = 4
+ESPERA_BASE = 2
+ESPERA_MAXIMA = 30
 
 
 def armar_peticion(
@@ -87,23 +92,31 @@ def enviar_peticion(url: str, headers: dict, body: dict) -> dict:
         raise RuntimeError("La respuesta del servicio no llegó en el formato esperado.") from error
 
 
-def con_reintentos(funcion: Callable[[], Any], esperas: tuple[int, ...] = ESPERAS_REINTENTO) -> tuple[Any, int]:
-    """Ejecuta funcion() y la reintenta con espera creciente solo si lanza TimeoutError.
+def con_reintentos(
+    funcion: Callable[[], Any],
+    intentos: int = INTENTOS,
+    espera_base: float = ESPERA_BASE,
+    espera_maxima: float = ESPERA_MAXIMA,
+) -> tuple[Any, int]:
+    """Ejecuta funcion() y la reintenta solo si lanza TimeoutError, con backoff exponencial y jitter.
 
+    La espera se duplica en cada intento (2, 4, 8 s…), nunca supera espera_maxima y se le suma
+    hasta un 10 % al azar, para que varios clientes no reintenten todos al mismo tiempo.
     Un ValueError (credencial inválida) u otro error se propaga de inmediato, sin reintentar.
-    Devuelve (resultado, intentos). Si se agotan los reintentos, relanza el TimeoutError
-    con el atributo `intentos` para saber cuántas veces se probó.
+    Devuelve (resultado, intentos). Si se agotan los intentos, relanza el TimeoutError
+    con el atributo `intentos`.
     """
-    total = len(esperas) + 1
-    for intento, espera in enumerate([*esperas, None], start=1):
+    for intento in range(1, intentos + 1):
         try:
             return funcion(), intento
         except TimeoutError as error:
-            if espera is None:
+            if intento == intentos:
                 error.intentos = intento
                 raise
-            print(f"Intento {intento} de {total} falló por límite de uso o saturación. Reintentando en {espera} s...")
-            time.sleep(espera)
+            espera = min(espera_base * (2 ** (intento - 1)), espera_maxima)
+            espera_con_jitter = espera + random.uniform(0, espera * 0.1)
+            print(f"Intento {intento} de {intentos} falló. Reintentando en {espera_con_jitter:.1f}s...")
+            time.sleep(espera_con_jitter)
     raise AssertionError("inalcanzable")
 
 
