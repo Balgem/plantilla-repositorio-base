@@ -130,6 +130,14 @@ La idea es que el programa nunca se caiga con un traceback; cada error termina e
 
 Los 503 fueron bastante frecuentes durante las pruebas, por eso agregué los reintentos. Un detalle que descubrí: con una llave inválida, Gemini no responde 401 sino 400 (`API_KEY_INVALID`), así que ese caso también se trata como error de credencial.
 
+## 🧪 Pruebas unitarias
+
+```bash
+pytest -v
+```
+
+Las pruebas están en `tests/test_cliente.py` y cubren las cuatro piezas del cliente: cómo `enviar_peticion` clasifica cada error (200, 400, 401, 403, 404, 429, 5xx y sin conexión), que `con_reintentos` reintente solo cuando corresponde y con backoff, que `registrar_costo` calcule y acumule bien, y que `consultar_modelo` convierta los errores y no cobre una operación que falló. Ninguna llama a la API ni espera de verdad (todo con mocks), así que corren en menos de un segundo y no gastan tokens.
+
 ## 🗂️ Prompts
 
 En `prompts/banco.py` hay tres prompts, cada uno con su esquema JSON:
