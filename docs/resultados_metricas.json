@@ -1,0 +1,59 @@
+{
+  "fecha": "2026-10-30",
+  "modelo": "gemini-3.5-flash-lite",
+  "resumen": {
+    "precision_promedio": 0.605,
+    "cobertura_promedio": 0.795,
+    "f1_promedio": 0.682
+  },
+  "casos": [
+    {
+      "consulta": "cuánto cuesta el teclado??",
+      "referencia": "El teclado mecánico K7 cuesta 59.990 CLP. Cómpralo en https://ejemplo.cl/r/k7",
+      "respuesta": "¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Pásate por https://ejemplo.cl/r/k7 para verlo.",
+      "precision": 0.615,
+      "cobertura": 0.8,
+      "f1": 0.696
+    },
+    {
+      "consulta": "dónde lo compro",
+      "referencia": "Cómpralo en https://ejemplo.cl/r/k7",
+      "respuesta": "Lo puedes comprar aquí: https://ejemplo.cl/r/k7",
+      "precision": 0.2,
+      "cobertura": 0.333,
+      "f1": 0.25
+    },
+    {
+      "consulta": "hacen envíos a regiones?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link: https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
+    },
+    {
+      "consulta": "tiene descuento?",
+      "referencia": "No hay descuentos, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No hay descuentos, revisa el link https://ejemplo.cl/r/k7 para más detalles.",
+      "precision": 0.7,
+      "cobertura": 1.0,
+      "f1": 0.824
+    },
+    {
+      "consulta": "el teclado es mecánico de verdad?",
+      "referencia": "Sí, el K7 es un teclado mecánico. Revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "¡Hola! Sí, es un teclado mecánico K7 de verdad. Cuesta 59.990 CLP y lo puedes revisar acá: https://ejemplo.cl/r/k7",
+      "precision": 0.389,
+      "cobertura": 0.636,
+      "f1": 0.483
+    },
+    {
+      "consulta": "cuánto demora el envío?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link para más detalles: https://ejemplo.cl/r/k7",
+      "precision": 0.727,
+      "cobertura": 1.0,
+      "f1": 0.842
+    }
+  ]
+}
