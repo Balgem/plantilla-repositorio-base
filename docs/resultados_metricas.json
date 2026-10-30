@@ -2,34 +2,66 @@
   "fecha": "2026-10-30",
   "modelo": "gemini-3.5-flash-lite",
   "resumen": {
-    "precision_promedio": 0.605,
-    "cobertura_promedio": 0.795,
-    "f1_promedio": 0.682
+    "precision_promedio": 0.627,
+    "cobertura_promedio": 0.792,
+    "f1_promedio": 0.688
   },
   "casos": [
     {
       "consulta": "cuánto cuesta el teclado??",
       "referencia": "El teclado mecánico K7 cuesta 59.990 CLP. Cómpralo en https://ejemplo.cl/r/k7",
-      "respuesta": "¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Pásate por https://ejemplo.cl/r/k7 para verlo.",
-      "precision": 0.615,
+      "respuesta": "¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. ⌨️🔥 Revisa el link: https://ejemplo.cl/r/k7",
+      "precision": 0.667,
       "cobertura": 0.8,
-      "f1": 0.696
+      "f1": 0.727
+    },
+    {
+      "consulta": "precio?",
+      "referencia": "El K7 cuesta 59.990 CLP. Cómpralo en https://ejemplo.cl/r/k7",
+      "respuesta": "El teclado mecánico K7 cuesta 59.990 CLP. Revisa el link para más detalles: https://ejemplo.cl/r/k7",
+      "precision": 0.429,
+      "cobertura": 0.75,
+      "f1": 0.545
     },
     {
       "consulta": "dónde lo compro",
       "referencia": "Cómpralo en https://ejemplo.cl/r/k7",
-      "respuesta": "Lo puedes comprar aquí: https://ejemplo.cl/r/k7",
-      "precision": 0.2,
-      "cobertura": 0.333,
-      "f1": 0.25
+      "respuesta": "¡Cómpralo aquí! https://ejemplo.cl/r/k7",
+      "precision": 0.667,
+      "cobertura": 0.667,
+      "f1": 0.667
     },
     {
-      "consulta": "hacen envíos a regiones?",
-      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
-      "respuesta": "No tengo esa información, revisa el link: https://ejemplo.cl/r/k7",
-      "precision": 1.0,
-      "cobertura": 1.0,
-      "f1": 1.0
+      "consulta": "lo quiero!! pásame el link",
+      "referencia": "Cómpralo en https://ejemplo.cl/r/k7",
+      "respuesta": "¡Buena elección! El teclado mecánico K7 cuesta 59.990 CLP y lo puedes comprar aquí: https://ejemplo.cl/r/k7",
+      "precision": 0.067,
+      "cobertura": 0.333,
+      "f1": 0.111
+    },
+    {
+      "consulta": "me lo compro altiro, cómo hago?",
+      "referencia": "Cómpralo en https://ejemplo.cl/r/k7",
+      "respuesta": "¡Buenísima elección! Métete a https://ejemplo.cl/r/k7 para llevártelo por 59.990 CLP.",
+      "precision": 0.1,
+      "cobertura": 0.333,
+      "f1": 0.154
+    },
+    {
+      "consulta": "el teclado es mecánico de verdad?",
+      "referencia": "Sí, el K7 es un teclado mecánico. Revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "¡Hola! Sí, es un teclado mecánico K7 de verdad. Cuesta 59.990 CLP y lo puedes ver acá: https://ejemplo.cl/r/k7",
+      "precision": 0.389,
+      "cobertura": 0.636,
+      "f1": 0.483
+    },
+    {
+      "consulta": "qué teclado estás usando?",
+      "referencia": "Es el teclado mecánico K7, cuesta 59.990 CLP. Revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "Es el teclado mecánico K7 y vale 59.990 CLP, revisa el link https://ejemplo.cl/r/k7 para más detalles.",
+      "precision": 0.688,
+      "cobertura": 0.917,
+      "f1": 0.786
     },
     {
       "consulta": "tiene descuento?",
@@ -40,20 +72,100 @@
       "f1": 0.824
     },
     {
-      "consulta": "el teclado es mecánico de verdad?",
-      "referencia": "Sí, el K7 es un teclado mecánico. Revisa el link https://ejemplo.cl/r/k7",
-      "respuesta": "¡Hola! Sí, es un teclado mecánico K7 de verdad. Cuesta 59.990 CLP y lo puedes revisar acá: https://ejemplo.cl/r/k7",
-      "precision": 0.389,
-      "cobertura": 0.636,
-      "f1": 0.483
+      "consulta": "compro 2 si me hacen descuento",
+      "referencia": "No hay descuentos, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No hay descuentos disponibles, pero puedes revisar todos los detalles en https://ejemplo.cl/r/k7",
+      "precision": 0.333,
+      "cobertura": 0.571,
+      "f1": 0.421
+    },
+    {
+      "consulta": "hay algún código de descuento para el chat?",
+      "referencia": "No hay descuentos ni códigos, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No hay descuentos, revisa el link https://ejemplo.cl/r/k7 para más detalles.",
+      "precision": 0.7,
+      "cobertura": 0.778,
+      "f1": 0.737
+    },
+    {
+      "consulta": "cuánto sale en dólares?",
+      "referencia": "El K7 cuesta 59.990 CLP. Revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No sé el precio en dólares, te invito a revisar el link https://ejemplo.cl/r/k7",
+      "precision": 0.308,
+      "cobertura": 0.444,
+      "f1": 0.364
+    },
+    {
+      "consulta": "how much is the keyboard?",
+      "referencia": "El teclado mecánico K7 cuesta 59.990 CLP. Revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "¡Hola! El teclado mecánico K7 cuesta 59.990 CLP. Puedes revisar más detalles en https://ejemplo.cl/r/k7",
+      "precision": 0.571,
+      "cobertura": 0.727,
+      "f1": 0.64
+    },
+    {
+      "consulta": "hacen envíos a regiones?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
     },
     {
       "consulta": "cuánto demora el envío?",
       "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
-      "respuesta": "No tengo esa información, revisa el link para más detalles: https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7 para más detalles.",
       "precision": 0.727,
       "cobertura": 1.0,
       "f1": 0.842
+    },
+    {
+      "consulta": "tiene garantía?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
+    },
+    {
+      "consulta": "qué switches trae?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, te invito a revisar el link https://ejemplo.cl/r/k7 para conocer los detalles.",
+      "precision": 0.467,
+      "cobertura": 0.875,
+      "f1": 0.609
+    },
+    {
+      "consulta": "es inalámbrico?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
+    },
+    {
+      "consulta": "sirve para mac?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7 para más detalles.",
+      "precision": 0.727,
+      "cobertura": 1.0,
+      "f1": 0.842
+    },
+    {
+      "consulta": "viene en color blanco?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
+    },
+    {
+      "consulta": "se puede pagar en cuotas?",
+      "referencia": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "respuesta": "No tengo esa información, revisa el link https://ejemplo.cl/r/k7",
+      "precision": 1.0,
+      "cobertura": 1.0,
+      "f1": 1.0
     }
   ]
 }

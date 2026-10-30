@@ -11,6 +11,7 @@ Evalúa respuestas reales del bot y guarda el resultado en docs/resultados_metri
 """
 import json
 import os
+import time
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -63,21 +64,34 @@ def peores_casos(resultados: list[dict], cantidad: int = 3) -> list[dict]:
     return sorted(resultados, key=lambda r: r["f1"])[:cantidad]
 
 
-# Mensajes reales del chat y la respuesta de referencia que escribí con los datos de la campaña.
+# Mensajes del chat y la respuesta de referencia que escribí con los datos de la campaña.
+# Incluyen preguntas con respuesta en la campaña, preguntas sin respuesta (el bot debe decir que no sabe)
+# y casos difíciles: descuentos, otra moneda, otro idioma y pedidos de datos que la campaña no tiene.
+LINK = "https://ejemplo.cl/r/k7"
+NO_SE = f"No tengo esa información, revisa el link {LINK}"
 CASOS = [
-    ("cuánto cuesta el teclado??",
-     "El teclado mecánico K7 cuesta 59.990 CLP. Cómpralo en https://ejemplo.cl/r/k7"),
-    ("dónde lo compro",
-     "Cómpralo en https://ejemplo.cl/r/k7"),
-    ("hacen envíos a regiones?",
-     "No tengo esa información, revisa el link https://ejemplo.cl/r/k7"),
-    ("tiene descuento?",
-     "No hay descuentos, revisa el link https://ejemplo.cl/r/k7"),
-    ("el teclado es mecánico de verdad?",
-     "Sí, el K7 es un teclado mecánico. Revisa el link https://ejemplo.cl/r/k7"),
-    ("cuánto demora el envío?",
-     "No tengo esa información, revisa el link https://ejemplo.cl/r/k7"),
+    ("cuánto cuesta el teclado??", f"El teclado mecánico K7 cuesta 59.990 CLP. Cómpralo en {LINK}"),
+    ("precio?", f"El K7 cuesta 59.990 CLP. Cómpralo en {LINK}"),
+    ("dónde lo compro", f"Cómpralo en {LINK}"),
+    ("lo quiero!! pásame el link", f"Cómpralo en {LINK}"),
+    ("me lo compro altiro, cómo hago?", f"Cómpralo en {LINK}"),
+    ("el teclado es mecánico de verdad?", f"Sí, el K7 es un teclado mecánico. Revisa el link {LINK}"),
+    ("qué teclado estás usando?", f"Es el teclado mecánico K7, cuesta 59.990 CLP. Revisa el link {LINK}"),
+    ("tiene descuento?", f"No hay descuentos, revisa el link {LINK}"),
+    ("compro 2 si me hacen descuento", f"No hay descuentos, revisa el link {LINK}"),
+    ("hay algún código de descuento para el chat?", f"No hay descuentos ni códigos, revisa el link {LINK}"),
+    ("cuánto sale en dólares?", f"El K7 cuesta 59.990 CLP. Revisa el link {LINK}"),
+    ("how much is the keyboard?", f"El teclado mecánico K7 cuesta 59.990 CLP. Revisa el link {LINK}"),
+    ("hacen envíos a regiones?", NO_SE),
+    ("cuánto demora el envío?", NO_SE),
+    ("tiene garantía?", NO_SE),
+    ("qué switches trae?", NO_SE),
+    ("es inalámbrico?", NO_SE),
+    ("sirve para mac?", NO_SE),
+    ("viene en color blanco?", NO_SE),
+    ("se puede pagar en cuotas?", NO_SE),
 ]
+PAUSA_SEGUNDOS = 2  # entre consultas, para no topar el límite de uso con 20 seguidas
 
 
 def guardar(resultados: list[dict]) -> None:
@@ -108,6 +122,7 @@ if __name__ == "__main__":
             **{clave: round(valor, 3) for clave, valor in metricas.items()},
         })
         guardar(resultados)
+        time.sleep(PAUSA_SEGUNDOS)
 
     print(f"\n{'Consulta':<36}{'Precisión':>10}{'Cobertura':>11}{'F1':>7}")
     for r in resultados:
@@ -117,8 +132,12 @@ if __name__ == "__main__":
     print(f"\nPromedio: precisión {resumen['precision_promedio']:.2f} · "
           f"cobertura {resumen['cobertura_promedio']:.2f} · F1 {resumen['f1_promedio']:.2f}")
 
-    print("\nPeores casos (leer primero):")
-    for r in peores_casos(resultados):
-        print(f"  F1 {r['f1']:.2f} · {r['consulta']}\n    Referencia: {r['referencia']}\n    Respuesta:  {r['respuesta']}")
+    # Muestra para la revisión manual: los 5 peores y los 5 mejores (sin repetir si hay pocos resultados).
+    ordenados = peores_casos(resultados, len(resultados))
+    muestra = ordenados[:5] + [r for r in ordenados[-5:] if r not in ordenados[:5]]
+    print(f"\nMuestra para revisar a mano ({len(muestra)} casos: los 5 peores y los 5 mejores):")
+    for r in muestra:
+        print(f"\n  F1 {r['f1']:.2f} · P {r['precision']:.2f} · C {r['cobertura']:.2f} · {r['consulta']}"
+              f"\n    Referencia: {r['referencia']}\n    Respuesta:  {r['respuesta']}")
 
     print(f"\nResultados guardados en docs/{ARCHIVO_RESULTADOS.name}")
