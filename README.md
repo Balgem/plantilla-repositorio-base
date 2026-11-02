@@ -76,11 +76,18 @@ El `.env` está en el `.gitignore`, así que la llave nunca se sube al repo.
 
 ## 🚀 Cómo usarlo
 
-Con el entorno activo:
+Todo se ejecuta desde `main.py`, en la raíz. Con el entorno activo:
 
 ```bash
-python3 src/consumir_gemini.py
+python3 main.py demo
 ```
+
+| Comando | Qué hace |
+| --- | --- |
+| `python3 main.py demo` | Demo del bot: validación de la entrada, conexión y dos mensajes del chat |
+| `python3 main.py consistencia` | Prueba cada prompt del banco 3 veces contra la API |
+| `python3 main.py comparar --confirmar` | Repite la comparación de 9 modelos (unos 15 minutos y unas 100 peticiones) |
+| `python3 main.py` | Muestra la ayuda con todas las opciones |
 
 Debería salir algo así (el texto cambia un poco en cada corrida):
 
@@ -139,7 +146,7 @@ En `prompts/banco.py` hay tres prompts, cada uno con su esquema JSON:
 Para probarlos:
 
 ```bash
-python3 prompts/test_consistencia.py
+python3 main.py consistencia
 ```
 
 Corre cada prompt 3 veces y guarda el resultado en `prompts/registro_resultados.json`. Los tres dieron 3 de 3 respuestas válidas.
