@@ -72,17 +72,20 @@ def construir_cadena(modelo):
     )
 
 
-def crear_modelo():
-    """Crea el modelo de Gemini con la llave y el modelo del .env.
+def crear_modelo(nombre: str | None = None):
+    """Crea un modelo de Gemini con la llave del .env. Por defecto, el modelo de GEMINI_MODEL.
 
-    No se pasa temperature: gemini-3.5-flash-lite usa valores de muestreo fijos y la ignora
-    (LangChain lo avisa con un UserWarning si se la pasa).
+    - No se pasa temperature: gemini-3.5-flash-lite usa valores de muestreo fijos y la ignora.
+    - timeout=30: si Gemini no responde, la demora se convierte en excepción (y salta el fallback).
+    - max_retries=2: el conector reintenta 6 veces por defecto; con 2 se llega antes al plan B.
     """
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     return ChatGoogleGenerativeAI(
-        model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+        model=nombre or os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
         google_api_key=os.getenv("API_KEY"),
+        timeout=30,
+        max_retries=2,
     )
 
 
