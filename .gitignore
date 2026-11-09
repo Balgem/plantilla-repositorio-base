@@ -19,3 +19,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Trazas, aprobaciones y reportes del bot (nombres y mensajes de viewers: no se suben)
+trazas_agente.jsonl
+aprobaciones.jsonl
+reporte_marca.md

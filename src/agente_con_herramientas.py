@@ -1,4 +1,4 @@
-"""Agente del bot con tres herramientas propias (Bloque 21).
+"""Agente del bot con sus herramientas propias (Bloques 21 a 23).
 
 A diferencia de la chain con enrutamiento (Bloque 19), aquí el modelo decide en cada consulta
 qué herramienta usar, en qué orden, o si no necesita ninguna:
@@ -6,6 +6,8 @@ qué herramienta usar, en qué orden, o si no necesita ninguna:
 - consultar_campana: datos de la campaña (precio, link, descuentos, características).
 - consultar_viewers: cuántas personas están viendo el stream.
 - registrar_interes_compra: guarda en el CRM a un viewer que quiere comprar.
+- marcar_comentario_negativo (Bloque 23): deja con flag un comentario negativo sobre el producto o la marca.
+  No lo manda a nadie: queda pendiente para la revisión humana del reporte post-stream (src/reporte_marca.py).
 
 En el bot completo, el filtro de spam sigue siendo la chain del Bloque 19 (barata y predecible);
 el agente entra solo con los mensajes que merecen respuesta.
@@ -97,7 +99,43 @@ def registrar_interes_compra(usuario: str, mensaje: str, cantidad: int = 1) -> s
         return f"No se pudo registrar el interés de compra: {error}"
 
 
-HERRAMIENTAS = [consultar_campana, consultar_viewers, registrar_interes_compra]
+class ArgumentosComentarioNegativo(BaseModel):
+    """Argumentos de marcar_comentario_negativo (Bloque 23)."""
+
+    usuario: str = Field(description="Nombre del viewer tal como aparece entre corchetes al inicio del mensaje. "
+                                     "No inventarlo.")
+    mensaje: str = Field(description="El mensaje original del viewer, sin cambios ni resumen.")
+    motivo: str = Field(max_length=150, description="En pocas palabras, qué critica: calidad, precio, la marca, "
+                                                    "una falla, etc.")
+
+
+COMENTARIOS_MARCADOS: list[dict] = []  # en memoria del proceso; el reporte post-stream los lee desde la traza
+
+
+@tool("marcar_comentario_negativo", args_schema=ArgumentosComentarioNegativo)
+def marcar_comentario_negativo(usuario: str, mensaje: str, motivo: str) -> str:
+    """Deja con flag un comentario negativo sobre el teclado K7 o la marca (crítica, queja, burla, una falla).
+    Usar solo cuando el mensaje habla mal del producto o de la marca, no por cualquier mensaje con tono fuerte.
+    No envía nada a nadie: el comentario queda pendiente de que una persona decida si va al reporte de la marca."""
+    for comentario in COMENTARIOS_MARCADOS:
+        if comentario["usuario"] == usuario and comentario["mensaje"] == mensaje:
+            return "Ese comentario ya estaba marcado."
+    COMENTARIOS_MARCADOS.append({"usuario": usuario, "mensaje": mensaje, "motivo": motivo,
+                                 "estado": "pendiente de revisión", "fecha": datetime.now().isoformat()})
+    return "Comentario marcado para revisión humana. No respondas discutiendo ni defendiendo el producto."
+
+
+HERRAMIENTAS = [consultar_campana, consultar_viewers, registrar_interes_compra, marcar_comentario_negativo]
+
+# Clasificación de riesgo del agente en vivo (Bloque 23), la misma de docs/limites_autonomia_agente.md.
+# Ninguna es de riesgo alto: lo que sale hacia la marca pasa por src/reporte_marca.py, con aprobación humana.
+# tests/test_supervision_y_trazas.py comprueba que toda herramienta "alto" llame a esperar_aprobacion.
+NIVEL_DE_RIESGO = {
+    "consultar_campana": "bajo",             # solo lee datos fijos de la campaña
+    "consultar_viewers": "bajo",             # solo lee un número
+    "registrar_interes_compra": "medio",     # escribe en el CRM, pero se puede corregir y no duplica
+    "marcar_comentario_negativo": "medio",   # escribe un flag interno; no sale hasta que una persona lo apruebe
+}
 
 INSTRUCCIONES_BOT = (
         "Eres el bot de chat de una campaña publicitaria del teclado mecánico K7 en un stream de Twitch. "
@@ -105,7 +143,8 @@ INSTRUCCIONES_BOT = (
         "nunca inventes precios, descuentos ni características, y no agregues frases promocionales que no "
         "vengan de las herramientas (stock, unidades limitadas, ofertas por tiempo limitado, envío gratis). Si el viewer quiere comprar, regístralo con "
         "registrar_interes_compra y dale el link que entrega consultar_campana (nunca escribas otro link). Si te preguntan algo que no tiene que ver con la campaña ni "
-        "con el stream, responde breve y amable, sin usar herramientas."
+        "con el stream, responde breve y amable, sin usar herramientas. Si alguien habla mal del producto o de la marca, "
+        "márcalo con marcar_comentario_negativo y responde breve y neutral, sin discutir ni defender el producto."
 )
 
 prompt_agente = ChatPromptTemplate.from_messages([

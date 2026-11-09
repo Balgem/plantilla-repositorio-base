@@ -10,6 +10,9 @@ Lo que agrega respecto del ejemplo de la lección, por ser un chat público con 
 - cerrar_sesion() y cerrar_todas() para liberar memoria (por ejemplo, al terminar el stream).
 - La sesión sale del nombre entre corchetes del mensaje, así un viewer no puede usar la memoria de otro.
 
+Bloque 23: cada turno queda guardado en trazas_agente.jsonl (src/trazas.py), con lo que respondió el modelo
+antes de los filtros. Al terminar el stream, src/reporte_marca.py arma el reporte desde esa traza.
+
 Uso, desde la raíz del repositorio y con el entorno activo:
     python3 src/agente_con_memoria.py
 """
@@ -25,13 +28,16 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from agente_con_herramientas import (
     INSTRUCCIONES_BOT,
+    COMENTARIOS_MARCADOS,
     REGISTRO_CRM,
     construir_agente,
     filtrar_salida,
     herramientas_usadas,
+    texto_de_salida,
 )
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
 from enrutamiento import MODELO_SECUNDARIO
+import trazas
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +93,8 @@ def limpiar_salida(resultado: dict) -> dict:
     en mensaje y falla (MESSAGE_COERCION_FAILURE). Además, así la memoria no guarda links ni promesas inventadas:
     si los guardara, el modelo los vería en el turno siguiente como si fueran ciertos.
     """
-    return {**resultado, "output": filtrar_salida(resultado["output"])}
+    return {**resultado, "respuesta_modelo": texto_de_salida(resultado["output"]),
+            "output": filtrar_salida(resultado["output"])}
 
 
 def construir_agente_con_memoria(modelo, modelo_secundario=None, verbose: bool = False) -> RunnableWithMessageHistory:
@@ -109,16 +116,20 @@ def procesar_mensaje_con_memoria(agente: RunnableWithMessageHistory, entrada: st
 
     Sin nombre de usuario no hay sesión: el bot no responde (no puede saber a qué historial pertenece).
     Ante cualquier error, registra y no responde (Bloque 20). La salida pasa por los mismos filtros del Bloque 21.
+    Cada turno, con o sin error, queda en la traza (Bloque 23).
     """
     usuario = usuario_de(entrada)
     if usuario is None:
         return {"output": SIN_RESPUESTA, "intermediate_steps": []}
     try:
         resultado = agente.invoke({"entrada": entrada}, {"configurable": {"session_id": usuario}})
-        return resultado  # 'output' ya viene limpio (limpiar_salida)
-    except Exception:
+        error = None  # 'output' ya viene limpio (limpiar_salida)
+    except Exception as excepcion:
         logger.exception("El agente con memoria no pudo procesar %r", entrada)
-        return {"output": SIN_RESPUESTA, "intermediate_steps": []}
+        resultado, error = {"output": SIN_RESPUESTA, "intermediate_steps": []}, repr(excepcion)
+    trazas.registrar_traza(usuario, entrada, resultado, respuesta_modelo=resultado.get("respuesta_modelo"),
+                           error=error)
+    return resultado
 
 
 CONVERSACION = [
@@ -126,6 +137,10 @@ CONVERSACION = [
     "[juli_k] y si compro 2?",                   # depende del turno anterior
     "[ana_gamer] de qué teclado me hablaste?",    # otra sesión: no debería saberlo
     "[juli_k] dale, lo quiero!! cómo pago?",      # no debe duplicar el registro en el CRM
+    # Bloque 23: comentarios negativos. Se marcan, pero no se mandan a ningún lado.
+    "[troll99] el K7 es una basura, a mi primo se le salieron las teclas en una semana",
+    "[maria_fps] 60 lucas por un teclado?? carísimo, hay mejores por la mitad",
+    "[tomas] jajaja qué buena jugada",           # tono informal, no es una crítica: no se marca
 ]
 
 if __name__ == "__main__":
@@ -135,9 +150,12 @@ if __name__ == "__main__":
     agente = construir_agente_con_memoria(crear_modelo(), modelo_secundario=crear_modelo(MODELO_SECUNDARIO))
     for entrada in CONVERSACION:
         resultado = procesar_mensaje_con_memoria(agente, entrada)
-        usuario = usuario_de(entrada)
         print(f"> {entrada}")
+        usuario = usuario_de(entrada)
         print(f"  Herramientas: {herramientas_usadas(resultado) or 'ninguna'}")
         print(f"  Respuesta: {resultado['output']}")
         print(f"  Mensajes en el historial de {usuario}: {len(obtener_historial(usuario).messages)}\n")
     print(f"Registros en el CRM simulado: {REGISTRO_CRM}")
+    print(f"Comentarios marcados (pendientes de revisión): {[(c['usuario'], c['motivo']) for c in COMENTARIOS_MARCADOS]}")
+    print(f"\nTraza guardada en {trazas.ARCHIVO_TRAZAS}.")
+    print("Revisarla: python3 src/trazas.py · Reporte post-stream: python3 src/reporte_marca.py")
