@@ -25,15 +25,18 @@ from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
 from enrutamiento import MODELO_SECUNDARIO
 
 logger = logging.getLogger(__name__)
 
+LINK_OFICIAL = "https://ejemplo.cl/r/k7"
+
 DATOS_CAMPANA = {
     "precio": "El teclado mecánico K7 cuesta 59.990 CLP.",
-    "link": "El link de compra es https://ejemplo.cl/r/k7",
+    "link": f"El link de compra es {LINK_OFICIAL}",
     "descuento": "No hay descuentos ni códigos de descuento.",
     "mecánico": "Sí, el K7 es un teclado mecánico.",
 }
@@ -68,30 +71,45 @@ def consultar_viewers() -> str:
         return "No se pudo obtener la cantidad de viewers en este momento."
 
 
-@tool
-def registrar_interes_compra(usuario: str, mensaje: str) -> str:
+class ArgumentosInteresCompra(BaseModel):
+    """Argumentos de registrar_interes_compra (Bloque 22): cada uno con su propia descripción para el modelo."""
+
+    usuario: str = Field(description="Nombre del viewer tal como aparece entre corchetes al inicio del mensaje, "
+                                     "por ejemplo 'juli_k'. No inventarlo.")
+    mensaje: str = Field(description="El mensaje original del viewer, sin cambios.")
+    cantidad: int = Field(default=1, ge=1, description="Cuántas unidades quiere comprar; 1 si no lo dice.")
+
+
+@tool("registrar_interes_compra", args_schema=ArgumentosInteresCompra)
+def registrar_interes_compra(usuario: str, mensaje: str, cantidad: int = 1) -> str:
     """Registra en el CRM a un viewer que muestra intención clara de comprar el producto
-    (por ejemplo, 'lo quiero', 'cómo lo compro', 'me lo compro'). No usar para preguntas generales,
-    saludos ni spam. Recibe el nombre del viewer y su mensaje."""
+    (por ejemplo, 'lo quiero', 'cómo lo compro', 'me lo compro', 'compro 2'). No usar para preguntas generales,
+    saludos ni spam. Si el viewer ya estaba registrado, actualiza la cantidad en vez de duplicarlo."""
     try:
-        REGISTRO_CRM.append({"usuario": usuario, "mensaje": mensaje, "fecha": datetime.now().isoformat()})
-        return f"Interés de compra de {usuario} registrado en el CRM."
+        for registro in REGISTRO_CRM:
+            if registro["usuario"] == usuario:
+                registro.update({"mensaje": mensaje, "cantidad": cantidad, "fecha": datetime.now().isoformat()})
+                return f"{usuario} ya estaba registrado en el CRM; se actualizó a {cantidad} unidad/es."
+        REGISTRO_CRM.append({"usuario": usuario, "mensaje": mensaje, "cantidad": cantidad,
+                             "fecha": datetime.now().isoformat()})
+        return f"Interés de compra de {usuario} registrado en el CRM ({cantidad} unidad/es)."
     except Exception as error:  # en el CRM real puede fallar la conexión
         return f"No se pudo registrar el interés de compra: {error}"
 
 
 HERRAMIENTAS = [consultar_campana, consultar_viewers, registrar_interes_compra]
 
-prompt_agente = ChatPromptTemplate.from_messages([
-    (
-        "system",
+INSTRUCCIONES_BOT = (
         "Eres el bot de chat de una campaña publicitaria del teclado mecánico K7 en un stream de Twitch. "
         "Responde en español, en una o dos frases. Para cualquier dato del producto usa consultar_campana: "
         "nunca inventes precios, descuentos ni características, y no agregues frases promocionales que no "
         "vengan de las herramientas (stock, unidades limitadas, ofertas por tiempo limitado, envío gratis). Si el viewer quiere comprar, regístralo con "
-        "registrar_interes_compra y dale el link. Si te preguntan algo que no tiene que ver con la campaña ni "
-        "con el stream, responde breve y amable, sin usar herramientas.",
-    ),
+        "registrar_interes_compra y dale el link que entrega consultar_campana (nunca escribas otro link). Si te preguntan algo que no tiene que ver con la campaña ni "
+        "con el stream, responde breve y amable, sin usar herramientas."
+)
+
+prompt_agente = ChatPromptTemplate.from_messages([
+    ("system", INSTRUCCIONES_BOT),
     ("human", "{entrada}"),
     MessagesPlaceholder("agent_scratchpad"),
 ])
@@ -104,7 +122,7 @@ class AvisarFallosDelModelo(BaseCallbackHandler):
         logger.warning("Falló una llamada al modelo (%s); se usa el modelo de respaldo si está configurado.", error)
 
 
-def construir_agente(modelo, verbose: bool = False, modelo_secundario=None) -> AgentExecutor:
+def construir_agente(modelo, verbose: bool = False, modelo_secundario=None, prompt=None) -> AgentExecutor:
     """Arma el agente. Recibe el modelo como parámetro para poder usar un modelo falso en las pruebas.
 
     - modelo_secundario: si una llamada al modelo principal falla (503, timeout), esa misma llamada se repite
@@ -117,7 +135,7 @@ def construir_agente(modelo, verbose: bool = False, modelo_secundario=None) -> A
         # aunque la cubra el respaldo (manejar un error no es ocultarlo).
         principal = modelo.model_copy(update={"callbacks": [AvisarFallosDelModelo()]})
         modelo = principal.with_fallbacks([modelo_secundario])
-    agente = create_tool_calling_agent(modelo, HERRAMIENTAS, prompt_agente)
+    agente = create_tool_calling_agent(modelo, HERRAMIENTAS, prompt or prompt_agente)
     return AgentExecutor(
         agent=agente,
         tools=HERRAMIENTAS,
@@ -164,6 +182,31 @@ def quitar_promesas_inventadas(texto: str) -> str:
     return " ".join(permitidas) if permitidas else SIN_RESPUESTA
 
 
+URL = re.compile(r"https?://[^\s)\]]+")
+
+
+def corregir_links(texto: str) -> str:
+    """Reemplaza cualquier link que no sea el oficial por el oficial (chequeo determinista).
+
+    En la prueba con memoria el modelo escribió un link inventado (teclado-k7-campana.com) en vez del real:
+    un viewer que lo abre podría terminar en un sitio que no es de la marca.
+    """
+    def reemplazar(coincidencia: re.Match) -> str:
+        link = coincidencia.group(0).rstrip(".,;:!?")
+        sobrante = coincidencia.group(0)[len(link):]
+        if link == LINK_OFICIAL:
+            return coincidencia.group(0)
+        logger.warning("Se reemplazó un link inventado: %s", link)
+        return LINK_OFICIAL + sobrante
+
+    return URL.sub(reemplazar, texto)
+
+
+def filtrar_salida(salida) -> str:
+    """Todos los chequeos deterministas sobre la respuesta: texto plano, link oficial y sin promesas inventadas."""
+    return quitar_promesas_inventadas(corregir_links(texto_de_salida(salida)))
+
+
 def procesar_mensaje_agente(ejecutor: AgentExecutor, entrada: str) -> dict:
     """Invoca al agente sin que una falla tumbe el programa (Bloque 20) y devuelve la respuesta como texto.
 
@@ -171,7 +214,7 @@ def procesar_mensaje_agente(ejecutor: AgentExecutor, entrada: str) -> dict:
     """
     try:
         resultado = ejecutor.invoke({"entrada": entrada})
-        return {**resultado, "output": quitar_promesas_inventadas(texto_de_salida(resultado["output"]))}
+        return {**resultado, "output": filtrar_salida(resultado["output"])}
     except Exception:
         logger.exception("El agente no pudo procesar %r", entrada)
         return {"output": SIN_RESPUESTA, "intermediate_steps": []}
