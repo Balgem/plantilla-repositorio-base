@@ -24,3 +24,6 @@ Thumbs.db
 trazas_agente.jsonl
 aprobaciones.jsonl
 reporte_marca.md
+
+# Índice de embeddings (se regenera con python3 src/indexar_corpus.py)
+vectorstore/
