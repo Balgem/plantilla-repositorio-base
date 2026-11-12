@@ -104,7 +104,7 @@ def test_revisar_citas():
 
 def test_respuesta_bien_citada_no_marca_nada():
     revision = rc.revisar_citas("Cuesta 59.990 CLP [1] y se compra en el link oficial [1][2].", {1: "a", 2: "b"})
-    assert revision == {"fuentes": ["a", "b"], "inventadas": [], "sin_cita": []}
+    assert revision == {"fuentes": ["a", "b"], "inventadas": [], "admite_no_saber": [], "sin_cita": []}
 
 
 def test_responder_llama_al_modelo_con_el_prompt_y_revisa_las_citas(indice):
@@ -118,3 +118,18 @@ def test_responder_llama_al_modelo_con_el_prompt_y_revisa_las_citas(indice):
 def test_cada_chunk_queda_en_una_sola_linea_del_contexto(indice):
     contexto, citas = rc.formatear_contexto(ic.partir_en_chunks(ic.cargar_corpus())[:3])
     assert len(contexto.split("\n\n")) == len(citas) == 3
+
+
+@pytest.mark.parametrize("respuesta", [
+    "El contexto no alcanza para responder cuánto pesa el K7.",                       # salida real, pregunta 4
+    "Funciona con consolas USB [1]. El contexto no menciona explícitamente a la PlayStation.",  # salida real, pregunta 3
+    "No tengo esa información.",
+])
+def test_admitir_que_no_sabe_no_se_marca_como_invento(respuesta):
+    revision = rc.revisar_citas(respuesta, {1: "05_preguntas_frecuentes.md"})
+    assert revision["sin_cita"] == [] and len(revision["admite_no_saber"]) == 1
+
+
+def test_una_frase_sin_cita_que_afirma_algo_si_se_marca():
+    revision = rc.revisar_citas("Cuesta 59.990 CLP [1]. Pesa 800 gramos.", {1: "02_precio_y_compra.md"})
+    assert revision["sin_cita"] == ["Pesa 800 gramos."] and revision["admite_no_saber"] == []

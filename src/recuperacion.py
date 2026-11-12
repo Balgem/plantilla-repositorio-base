@@ -34,6 +34,15 @@ Respuesta:"""
 
 SIN_CONTEXTO = "(no se recuperó ningún fragmento)"
 
+# Frases con las que el modelo admite que el contexto no alcanza. No citan nada, y está bien: son la salida
+# que el prompt pide en vez de inventar. Sin esto, "El contexto no alcanza para responder..." se marcaba
+# como frase sin cita (candidata a invento), al revés de lo que es.
+ADMITE_NO_SABER = re.compile(
+    r"contexto no (alcanza|menciona|indica|dice|incluye|especifica)|no (tengo|hay|se tiene) (esa )?informaci[oó]n|"
+    r"no se (menciona|indica|especifica)",
+    re.IGNORECASE,
+)
+
 
 def formatear_contexto(chunks_recuperados) -> tuple[str, dict[int, str]]:
     """Contexto numerado para el prompt y mapa {número: fuente} para reconstruir cada cita después."""
@@ -71,14 +80,17 @@ def revisar_citas(respuesta: str, citas: dict[int, str]) -> dict:
 
     - fuentes: archivos que respaldan la respuesta (solo citas válidas).
     - inventadas: números que no estaban en el contexto (por ejemplo [99]).
-    - sin_cita: frases que no citan nada; si además no dicen "no tengo información", son candidatas a invento.
+    - admite_no_saber: frases sin cita en las que el modelo dice que el contexto no alcanza (lo correcto).
+    - sin_cita: el resto de las frases que no citan nada: candidatas a invento.
     """
     numeros = [int(n) for n in re.findall(r"\[(\d+)\]", respuesta)]
     frases = [f for f in re.split(r"(?<=[.!?])\s+", respuesta.strip()) if f]
+    sin_cita = [f for f in frases if not re.search(r"\[\d+\]", f)]
     return {
         "fuentes": sorted({citas[n] for n in numeros if n in citas}),
         "inventadas": sorted({n for n in numeros if n not in citas}),
-        "sin_cita": [f for f in frases if not re.search(r"\[\d+\]", f)],
+        "admite_no_saber": [f for f in sin_cita if ADMITE_NO_SABER.search(f)],
+        "sin_cita": [f for f in sin_cita if not ADMITE_NO_SABER.search(f)],
     }
 
 
@@ -120,5 +132,7 @@ if __name__ == "__main__":
         print(f"  fuentes citadas: {revision['fuentes'] or 'ninguna'}")
         if revision["inventadas"]:
             print(f"  ⚠️ citas inventadas: {revision['inventadas']}")
+        if revision["admite_no_saber"]:
+            print(f"  ✅ admite que no sabe: {revision['admite_no_saber']}")
         if revision["sin_cita"]:
             print(f"  ⚠️ frases sin cita: {revision['sin_cita']}")
