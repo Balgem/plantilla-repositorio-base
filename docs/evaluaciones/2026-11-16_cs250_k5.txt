@@ -1,0 +1,23 @@
+Fecha: 2026-11-16
+Configuracion: k=5, chunk_size=250, chunk_overlap=40, embeddings=models/gemini-embedding-001
+Casos: 13 con respuesta, 2 sin respuesta (no entran en los promedios)
+
+prec  recall  1er acierto  pregunta
+0.20   1.00        1      ¿sale muy caro el teclado?
+0.20   1.00        1      ¿dónde lo puedo comprar?
+0.20   1.00        1      ¿se puede pagar con débito?
+0.20   1.00        1      ¿cuánto cobran por el envío?
+0.20   1.00        1      ¿llega a Arica?
+0.20   1.00        1      si lo pido hoy, ¿cuándo me llega en Santiago?
+0.20   1.00        1      si le cae café encima, ¿lo cubre la garantía?
+0.20   1.00        1      se me rompió una tecla, ¿a quién le escribo?
+0.20   1.00        2      ¿es inalámbrico?
+0.40   1.00        1      ¿sirve para gaming?
+0.20   1.00        1      ¿hace mucho ruido?
+0.20   1.00        1      ¿le puedo poner otros switches?
+0.20   1.00        1      ¿trae keycaps de repuesto?
+ n/a    n/a        -      ¿cuánto pesa el teclado?   (sin respuesta: 01_ficha_tecnica.md#0, 05_preguntas_frecuentes.md#1, 03_despacho.md#0, 06_contenido_de_la_caja.md#0, 05_preguntas_frecuentes.md#2)
+ n/a    n/a        -      ¿en qué país se fabrica?   (sin respuesta: 04_garantia_y_soporte.md#0, 05_preguntas_frecuentes.md#2, 02_precio_y_compra.md#0, 04_garantia_y_soporte.md#1, 03_despacho.md#0)
+
+promedio -> precision: 0.215  recall: 1.000
+precision maxima posible con k=5: 0.215
