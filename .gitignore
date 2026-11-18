@@ -30,3 +30,6 @@ vectorstore/
 
 # Logs del flujo RAG (Bloque 31): pueden tener huellas de viewers
 logs/
+
+# Aprobaciones pendientes del grafo de supervisión (Bloque 32): se regeneran, no se suben
+checkpoints/

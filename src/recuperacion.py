@@ -39,6 +39,7 @@ SIN_CONTEXTO = "(no se recuperó ningún fragmento)"
 # como frase sin cita (candidata a invento), al revés de lo que es.
 ADMITE_NO_SABER = re.compile(
     r"contexto no (alcanza|menciona|indica|dice|incluye|especifica)|no (tengo|hay|se tiene) (esa )?informaci[oó]n|"
+    r"no tengo (ese|este|el) dato|"  # la forma que pide la v3 del prompt (Bloque 32)
     r"no se (menciona|indica|especifica)",
     re.IGNORECASE,
 )
