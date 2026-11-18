@@ -13,6 +13,7 @@ import agente_con_herramientas as ag
 import agente_con_memoria as mem
 import supervision
 import trazas
+from privacidad import huella
 from agente_con_herramientas import NIVEL_DE_RIESGO, marcar_comentario_negativo
 from supervision import esperar_aprobacion
 
@@ -175,9 +176,25 @@ def test_un_comentario_negativo_queda_marcado_en_la_traza():
     resultado = mem.procesar_mensaje_con_memoria(agente, "[troll99] el K7 es una basura")
     assert resultado["output"] == "Gracias por tu opinión."
     [traza] = trazas.leer_trazas()
-    assert traza["session_id"] == "troll99"
+    assert traza["viewer"] == huella("troll99")  # Gate 2: el nombre no queda en la traza
     assert traza["acciones"][0]["argumentos"]["motivo"] == "calidad"
+    assert traza["acciones"][0]["argumentos"]["usuario"] == huella("troll99")
     assert trazas.revisar_trazas([traza])["comentarios_marcados"] == [traza]
+
+
+def test_la_traza_no_guarda_datos_personales():
+    correo = "ana.perez@example.com"
+    entrada = f"[ana_p] el K7 es malo, reclamos a {correo} o al +56 9 1234 5678"
+    modelo = ModeloFalso(responses=[
+        llamada("marcar_comentario_negativo", usuario="ana_p", mensaje=entrada[8:], motivo="calidad"),
+        AIMessage(content=f"Gracias, te escribo a {correo}."),
+    ])
+    mem.procesar_mensaje_con_memoria(mem.construir_agente_con_memoria(modelo), entrada)
+    texto = trazas.ARCHIVO_TRAZAS.read_text(encoding="utf-8")
+    assert correo not in texto and "ana_p" not in texto and "1234 5678" not in texto
+    [traza] = trazas.leer_trazas()
+    assert traza["entrada"] == {"largo": len(entrada), "huella": huella(entrada), "pii": ["correo", "telefono"]}
+    assert traza["acciones"][0]["argumentos"]["mensaje"] == "el K7 es malo, reclamos a [correo] o al [telefono]"
 
 
 def test_la_traza_guarda_el_link_inventado_y_el_publicado():

@@ -107,7 +107,35 @@ def test_reconectar_no_calcula_embeddings_del_corpus(tmp_path, chunks, embedding
 def test_los_metadatos_se_guardan(tmp_path, chunks, embeddings_falsos):
     indice = ic.indexar(chunks, embeddings_falsos, carpeta=tmp_path)
     [resultado] = indice.similarity_search(chunks[0].page_content, k=1)  # texto idéntico -> mismo vector
-    assert resultado.metadata == chunks[0].metadata
+    assert resultado.metadata == {**chunks[0].metadata, "huella": ic.huella_contenido(chunks[0].page_content)}
+
+
+# --- Gate 2: actualización incremental (Bloque 25) ---
+
+
+def test_sin_cambios_no_calcula_ningun_embedding(tmp_path, chunks, embeddings_falsos):
+    _, primera = ic.actualizar_indice(chunks, embeddings_falsos, carpeta=tmp_path)
+    assert primera["nuevos"] == len(chunks) and primera["embeddings_calculados"] == len(chunks)
+    _, segunda = ic.actualizar_indice(chunks, embeddings_falsos, carpeta=tmp_path)
+    assert segunda == {"nuevos": 0, "cambiados": 0, "borrados": 0, "sin_cambios": len(chunks),
+                       "total": len(chunks), "embeddings_calculados": 0}
+
+
+def test_solo_reembebe_el_chunk_que_cambio(tmp_path, chunks, embeddings_falsos):
+    from langchain_core.documents import Document
+    ic.actualizar_indice(chunks, embeddings_falsos, carpeta=tmp_path)
+    editados = list(chunks)
+    editados[2] = Document(page_content=chunks[2].page_content + " Texto nuevo.", metadata=chunks[2].metadata)
+    indice, resumen = ic.actualizar_indice(editados, embeddings_falsos, carpeta=tmp_path)
+    assert (resumen["cambiados"], resumen["embeddings_calculados"], resumen["borrados"]) == (1, 1, 0)
+    guardado = indice.get(ids=[ic.id_de(chunks[2])])["documents"][0]
+    assert guardado.endswith("Texto nuevo.") and indice._collection.count() == len(chunks)
+
+
+def test_desde_cero_recalcula_todo(tmp_path, chunks, embeddings_falsos):
+    ic.actualizar_indice(chunks, embeddings_falsos, carpeta=tmp_path)
+    _, resumen = ic.actualizar_indice(chunks, embeddings_falsos, carpeta=tmp_path, desde_cero=True)
+    assert resumen["embeddings_calculados"] == len(chunks)
 
 
 def test_reconectar_a_una_carpeta_equivocada_da_cero(tmp_path, embeddings_falsos):
@@ -144,5 +172,6 @@ def test_un_429_al_indexar_se_convierte_en_timeout_para_reintentar(tmp_path, chu
 def test_sin_api_key_termina_con_mensaje_claro(monkeypatch):
     monkeypatch.setattr(ic, "load_dotenv", lambda: None)
     monkeypatch.delenv("API_KEY", raising=False)
-    with pytest.raises(SystemExit, match="Falta API_KEY"):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(SystemExit, match="GEMINI_API_KEY"):
         ic.crear_embeddings()

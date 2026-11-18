@@ -4,6 +4,7 @@ import pytest
 import agente_con_herramientas as ag
 import decision
 import logging_rag
+import privacidad
 import registro_rag
 import reporte_marca
 import supervision
@@ -20,6 +21,10 @@ def sin_efectos_fuera_de_la_prueba(tmp_path, monkeypatch):
     monkeypatch.setattr(decision, "ARCHIVO_EVIDENCIA", tmp_path / "evidencia_prueba.json")
     monkeypatch.setattr(decision, "ARCHIVO_DECISION", tmp_path / "decision_prueba.md")
     monkeypatch.setattr(logging_rag, "ARCHIVO_LOGS", tmp_path / "logs_prueba.jsonl")
+    # Las huellas de las pruebas usan una clave fija y nunca crean logs/.clave_huellas en el repo
+    monkeypatch.setenv("CLAVE_HUELLAS", "clave-de-las-pruebas")
+    monkeypatch.setattr(privacidad, "ARCHIVO_CLAVE", tmp_path / ".clave_huellas")
+    privacidad._clave.cache_clear()
     supervision.registro_aprobaciones.clear()
     reporte_marca.REPORTES_ENVIADOS.clear()
     ag.COMENTARIOS_MARCADOS.clear()

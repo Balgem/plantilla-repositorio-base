@@ -1,7 +1,13 @@
-"""Reporte post-stream para la marca (Bloque 23).
+"""Reporte post-stream para la marca (Bloque 23; punto de supervisión del Gate 2).
 
-Se corre cuando termina la transmisión, no durante el chat:
-    python3 src/reporte_marca.py
+Se corre cuando termina la transmisión, no durante el chat. Desde el Gate 2, la aprobación es un grafo de
+LangGraph con interrupt() y checkpointer durable (como el despliegue de prompts del Bloque 32): enviar el
+reporte a la marca es la ACCIÓN de mayor riesgo del sistema (comunica en nombre del canal y no se retira).
+    python3 src/reporte_marca.py                              # arma el reporte y se DETIENE a esperar la decisión
+    python3 src/reporte_marca.py --pendientes                 # qué reportes esperan una decisión
+    python3 src/reporte_marca.py --aprobar <thread_id> --comentarios c1,c3   # enviar, con esos comentarios
+    python3 src/reporte_marca.py --rechazar <thread_id>      # no enviar
+    python3 src/reporte_marca.py --interactivo                # el flujo por consola del Bloque 23
 
 1. Lee la traza del stream (trazas_agente.jsonl) y cuenta qué pasó: turnos, preguntas, interesados en comprar.
 2. Toma los comentarios negativos que el agente marcó en vivo y pide aprobación humana para CADA uno:
@@ -14,13 +20,23 @@ Sin respuesta a tiempo, el comentario queda fuera y el reporte no se envía.
 
 El reporte no incluye nombres de viewers: la marca recibe lo que se dijo, no quién lo dijo.
 """
+import argparse
+import getpass
 import logging
+import sqlite3
+import sys
+import uuid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from typing import TypedDict
+
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 import supervision
 import trazas
+from indexar_corpus import RAIZ
 
 logger = logging.getLogger(__name__)
 
@@ -114,17 +130,158 @@ def enviar_reporte_a_marca(reporte: str, archivo=None) -> bool:
     return True
 
 
-if __name__ == "__main__":
+# --- Gate 2: la misma aprobación como grafo que pausa de verdad y se retoma con una decisión ---
+
+ARCHIVO_CHECKPOINTS = RAIZ / "checkpoints" / "reporte.db"
+MOTIVO = "aprobar el envío del reporte post-stream a la marca"
+
+
+class EstadoReporte(TypedDict, total=False):
+    datos: dict
+    comentarios: list[dict]
+    aprobado: bool
+    comentarios_aprobados: list[str]
+    decidido_por: str
+    reporte: str
+    resultado: str
+
+
+def construir_grafo(checkpointer, archivo_trazas=None, archivo_reporte=None):
+    """preparar -> revisar (interrupt) -> enviar. Los archivos se pueden cambiar (las pruebas usan temporales)."""
+
+    def preparar(estado: EstadoReporte):
+        datos = datos_del_stream(trazas.leer_trazas(archivo_trazas))
+        comentarios = [{"id": f"c{n}", "mensaje": c["mensaje"], "motivo": c["motivo"]}  # sin el viewer
+                       for n, c in enumerate(datos.pop("comentarios_marcados"), start=1)]
+        return {"datos": datos, "comentarios": comentarios}
+
+    def revisar(estado: EstadoReporte):
+        """Solo pregunta (al reanudar se vuelve a ejecutar desde aquí): nada que no se pueda repetir."""
+        decision = interrupt({
+            "motivo": MOTIVO,
+            "resumen": armar_reporte({**estado["datos"], "comentarios_marcados": estado["comentarios"]}, []),
+            "comentarios": estado["comentarios"],
+        })
+        if not isinstance(decision, dict):
+            decision = {"aprobado": decision}
+        ids = {c["id"] for c in estado["comentarios"]}
+        aprobado = decision.get("aprobado") is True  # "no", "si", 1: nada que no sea True envía
+        return {"aprobado": aprobado, "decidido_por": decision.get("por", "desconocido"),
+                "comentarios_aprobados": [i for i in decision.get("comentarios", []) if i in ids] if aprobado else []}
+
+    def enviar(estado: EstadoReporte):
+        incluidos = [c for c in estado["comentarios"] if c["id"] in estado["comentarios_aprobados"]]
+        for comentario in estado["comentarios"]:
+            supervision.registrar_aprobacion("incluir_comentario_en_reporte", comentario,
+                                             comentario in incluidos)
+        reporte = armar_reporte({**estado["datos"], "comentarios_marcados": estado["comentarios"]}, incluidos)
+        supervision.registrar_aprobacion("enviar_reporte_a_marca", {"reporte": reporte}, estado["aprobado"])
+        if not estado["aprobado"]:
+            return {"resultado": "reporte NO enviado"}
+        REPORTES_ENVIADOS.append(reporte)
+        Path(archivo_reporte or ARCHIVO_REPORTE).write_text(reporte, encoding="utf-8")  # simulación del envío
+        return {"reporte": reporte, "resultado": f"reporte enviado con {len(incluidos)} comentario(s)"}
+
+    grafo = StateGraph(EstadoReporte)
+    grafo.add_node("preparar", preparar)
+    grafo.add_node("revisar", revisar)
+    grafo.add_node("enviar", enviar)
+    grafo.add_edge(START, "preparar")
+    grafo.add_edge("preparar", "revisar")
+    grafo.add_edge("revisar", "enviar")
+    grafo.add_edge("enviar", END)
+    return grafo.compile(checkpointer=checkpointer)
+
+
+def app_durable(archivo=ARCHIVO_CHECKPOINTS, archivo_trazas=None, archivo_reporte=None):
+    from langgraph.checkpoint.sqlite import SqliteSaver
+
+    Path(archivo).parent.mkdir(parents=True, exist_ok=True)
+    return construir_grafo(SqliteSaver(sqlite3.connect(archivo, check_same_thread=False)),
+                           archivo_trazas, archivo_reporte)
+
+
+def config_de(thread_id: str) -> dict:
+    return {"configurable": {"thread_id": thread_id}}
+
+
+def preparar_reporte(app) -> tuple[str, dict]:
+    """Corre hasta el interrupt con un thread_id nuevo. Devuelve (thread_id, lo que la persona revisa)."""
+    thread_id = f"reporte-{uuid.uuid4().hex[:8]}"
+    resultado = app.invoke({}, config=config_de(thread_id))
+    return thread_id, resultado["__interrupt__"][0].value
+
+
+def pendientes(app) -> list[tuple[str, dict]]:
+    hilos = {c.config["configurable"]["thread_id"] for c in app.checkpointer.list(None)}
+    return [(h, app.get_state(config_de(h)).interrupts[0].value) for h in sorted(hilos)
+            if app.get_state(config_de(h)).next and app.get_state(config_de(h)).interrupts]
+
+
+def resolver(app, thread_id: str, aprobar: bool, comentarios: list[str], por: str) -> dict:
+    """Reanuda solo si ese hilo espera una decisión y los comentarios elegidos existen."""
+    if not isinstance(aprobar, bool):
+        raise TypeError(f"la decisión tiene que ser True o False, no {aprobar!r}")
+    snapshot = app.get_state(config_de(thread_id))
+    if not snapshot.next:
+        raise ValueError(f"{thread_id} no tiene ningún reporte pendiente (no existe o ya se decidió)")
+    desconocidos = set(comentarios) - {c["id"] for c in snapshot.values.get("comentarios", [])}
+    if desconocidos:
+        raise ValueError(f"comentarios que no están en el reporte: {sorted(desconocidos)}")
+    return app.invoke(Command(resume={"aprobado": aprobar, "comentarios": comentarios, "por": por}),
+                      config=config_de(thread_id))
+
+
+def mostrar_pendiente(thread_id: str, valor: dict) -> None:
+    print(f"\n{thread_id} · {valor['motivo']}\n")
+    print(valor["resumen"])
+    print("Comentarios marcados por el bot (redactados; elige cuáles van):")
+    for c in valor["comentarios"] or [{"id": "-", "mensaje": "ninguno", "motivo": ""}]:
+        print(f"  {c['id']}: «{c['mensaje']}» ({c['motivo']})")
+
+
+def _cli() -> None:
+    parser = argparse.ArgumentParser(description="Reporte post-stream con aprobación humana.")
+    grupo = parser.add_mutually_exclusive_group()
+    grupo.add_argument("--pendientes", action="store_true")
+    grupo.add_argument("--aprobar", metavar="THREAD_ID")
+    grupo.add_argument("--rechazar", metavar="THREAD_ID")
+    grupo.add_argument("--interactivo", action="store_true", help="el flujo por consola del Bloque 23")
+    parser.add_argument("--comentarios", default="", help="ids a incluir, separados por coma (ej.: c1,c3)")
+    args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s:%(name)s:%(message)s")
-    registros = trazas.leer_trazas()
-    if registros:
-        datos = datos_del_stream(registros)
-        print(f"Turnos en la traza: {datos['turnos']} · comentarios marcados: {len(datos['comentarios_marcados'])}")
-        print(f"Para cada uno escribe s o n y Enter (tienes {supervision.TIEMPO_LIMITE_APROBACION} s).")
-        aprobados = revisar_comentarios(datos["comentarios_marcados"])
-        enviado = enviar_reporte_a_marca(armar_reporte(datos, aprobados))
-        print(f"\n{'✅ Reporte enviado (simulado en ' + str(ARCHIVO_REPORTE) + ')' if enviado else '⛔ Reporte NO enviado'}")
-        print(f"Decisiones registradas en {supervision.ARCHIVO_APROBACIONES}:")
-        for decision in supervision.registro_aprobaciones:
-            print(f"  {decision['accion']}: {'aprobado' if decision['aprobado'] else 'rechazado'} "
-                  f"por {decision['aprobado_por']}")
+
+    if args.interactivo:
+        registros = trazas.leer_trazas()
+        if registros:
+            datos = datos_del_stream(registros)
+            aprobados = revisar_comentarios(datos["comentarios_marcados"])
+            enviado = enviar_reporte_a_marca(armar_reporte(datos, aprobados))
+            print("✅ Reporte enviado" if enviado else "⛔ Reporte NO enviado")
+        return
+
+    app = app_durable()
+    if args.pendientes:
+        lista = pendientes(app)
+        print(f"{len(lista)} reporte(s) esperando una decisión")
+        for thread_id, valor in lista:
+            mostrar_pendiente(thread_id, valor)
+    elif args.aprobar or args.rechazar:
+        ids = [c.strip() for c in args.comentarios.split(",") if c.strip()]
+        final = resolver(app, args.aprobar or args.rechazar, bool(args.aprobar), ids, por=getpass.getuser())
+        print(f"{final['resultado']} (decidido por {final['decidido_por']})")
+        if final.get("reporte"):
+            print(f"\n{final['reporte']}\nGuardado en {ARCHIVO_REPORTE} (simula el envío).")
+    else:
+        thread_id, valor = preparar_reporte(app)
+        mostrar_pendiente(thread_id, valor)
+        print(f"\n⏸  Pendiente de aprobación. Nada se envía hasta que decidas:\n"
+              f"  python3 src/reporte_marca.py --aprobar {thread_id} --comentarios c1,c2\n"
+              f"  python3 src/reporte_marca.py --rechazar {thread_id}")
+
+
+if __name__ == "__main__":
+    try:
+        _cli()
+    except (ValueError, TypeError) as error:
+        sys.exit(f"No se pudo: {error}")

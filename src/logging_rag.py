@@ -20,7 +20,6 @@ Defensa en profundidad, en este orden:
 """
 import argparse
 import contextvars
-import hashlib
 import json
 import logging
 import re
@@ -31,9 +30,10 @@ from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from agente_con_herramientas import SIN_RESPUESTA, filtrar_salida, texto_de_salida
+from agente_con_herramientas import SIN_RESPUESTA, etiqueta_fuentes, filtrar_salida, texto_de_salida
 from indexar_corpus import RAIZ
-from recuperacion import K, revisar_citas
+from recuperacion import ADMITE_NO_SABER, K, revisar_citas
+import privacidad
 from registro_prompts import prompt_activo
 from registro_rag import costo_usd
 
@@ -88,8 +88,9 @@ def evento(nombre: str, nivel: int = logging.INFO, **datos) -> None:
 
 
 def huella(texto: str) -> str:
-    """Para comparar textos sin guardarlos (sirve para preguntas largas; para nombres de usuario haría falta HMAC)."""
-    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:12]
+    """Para comparar textos sin guardarlos. Desde el Gate 2 es HMAC con clave propia (src/privacidad.py): con
+    SHA-256 sin clave, una lista de correos o nombres candidatos bastaba para saber cuál estaba detrás."""
+    return privacidad.huella(texto)
 
 
 # --- Paso 2: consumo ---
@@ -170,44 +171,102 @@ def construir_mensajes(pregunta: str, chunks, instrucciones: str | None = None) 
 # --- Paso 4: una consulta completa ---
 
 
-def procesar_consulta(pregunta: str, buscar, modelo, nombre_modelo: str = "gemini-3.5-flash-lite") -> str:
+RESPUESTA_SIN_CONTEXTO = "No tengo información verificada sobre eso."
+
+
+def armar_publicacion(texto: str, citas: dict[int, str]) -> dict:
+    """De la respuesta del modelo a lo que se publica en el chat (criterio 2 del Gate 2: cada respuesta cita).
+
+    Frase por frase:
+    - con al menos una cita válida [n]: se publica sin los corchetes y su fuente va a la etiqueta final;
+    - sin cita, pero admitiendo que no sabe ("No tengo ese dato del K7"): se publica (no afirma nada);
+    - sin cita y afirmando algo: NO se publica (sin cita no se distingue de una alucinación).
+    Cada frase que queda pasa además por filtrar_salida (capa 4). Las fuentes salen de la metadata de los
+    chunks recuperados (citas), nunca del texto que escribió el modelo.
+    """
+    publicadas, fuentes, quitadas_sin_cita, filtro_actuo = [], [], 0, False
+    for frase in [f for f in re.split(r"(?<=[.!?])\s+", texto.strip()) if f]:
+        validos = [int(n) for n in re.findall(r"\[(\d+)\]", frase) if int(n) in citas]
+        if not validos and not ADMITE_NO_SABER.search(frase):
+            quitadas_sin_cita += 1
+            continue
+        sin_corchetes = re.sub(r"\s*\[\d+\]", "", frase)
+        limpia = filtrar_salida(sin_corchetes)
+        filtro_actuo = filtro_actuo or limpia != sin_corchetes
+        if limpia == SIN_RESPUESTA:  # la capa 4 la quitó entera: tampoco cuenta su fuente
+            continue
+        publicadas.append(limpia)
+        fuentes += [citas[n] for n in validos if citas[n] not in fuentes]
+    if not publicadas:
+        return {"respuesta": SIN_RESPUESTA, "fuentes": [], "quitadas_sin_cita": quitadas_sin_cita,
+                "filtro_actuo": filtro_actuo}
+    cuerpo = " ".join(publicadas)
+    return {"respuesta": f"{cuerpo} {etiqueta_fuentes(fuentes)}" if fuentes else cuerpo,
+            "fuentes": fuentes, "quitadas_sin_cita": quitadas_sin_cita, "filtro_actuo": filtro_actuo}
+
+
+def responder(pregunta: str, buscar, modelo, nombre_modelo: str = "gemini-3.5-flash-lite") -> dict:
     """Una consulta del chat de punta a punta. buscar(pregunta) -> chunks (el retriever real, o uno de prueba).
 
-    Devuelve el texto a publicar. Todo lo que pasó queda en los logs con el mismo trace_id.
+    Devuelve {"trace_id", "respuesta", "fuentes"}: el texto a publicar (con su fuente) y de dónde salió.
+    Nunca lanza una excepción por una falla de la API: la registra y el bot no responde (criterio 1).
+    Todo lo que pasó queda en los logs con el mismo trace_id, sin el texto del viewer (criterio 3).
     """
     token = trace_id_var.set("trace-" + uuid.uuid4().hex[:8])  # uno nuevo por consulta, nunca global
+    trace_id = trace_id_var.get()
+
+    def salida(respuesta, fuentes=()):
+        return {"trace_id": trace_id, "respuesta": respuesta, "fuentes": list(fuentes)}
+
     try:
         prompt = prompt_activo()  # la versión aprobada del registro (Bloque 32); su huella queda en el log
         evento("consulta_recibida", pregunta_len=len(pregunta), pregunta_huella=huella(pregunta),
-               prompt_huella=prompt["huella"])
+               pregunta_pii=privacidad.contiene_pii(pregunta), prompt_huella=prompt["huella"])
         patrones_pregunta = detectar_inyeccion(pregunta)
         if patrones_pregunta:  # inyección directa: no se busca, no se llama al modelo
             evento("pregunta_descartada_por_inyeccion", logging.WARNING, n_patrones=len(patrones_pregunta),
                    patrones=patrones_pregunta)
-            return SIN_RESPUESTA
+            return salida(SIN_RESPUESTA)
 
-        chunks = buscar(pregunta)
+        try:
+            chunks = buscar(pregunta)
+        except Exception as error:  # embedding de la pregunta o Chroma: red, cuota, índice inexistente
+            evento("error_recuperacion", logging.ERROR, tipo=type(error).__name__)
+            return salida(SIN_RESPUESTA)
         evento("documentos_recuperados", n=len(chunks), ids=[c.id for c in chunks])
         limpios, descartados = filtrar_documentos_sospechosos(chunks)
         evento("contexto_filtrado", n_limpios=len(limpios), n_descartados=len(descartados))
+        if not limpios:  # ensayo del Gate 2: nunca pedirle al modelo que responda sin respaldo
+            evento("sin_contexto_confiable", logging.WARNING, n_recuperados=len(chunks),
+                   n_descartados=len(descartados))
+            return salida(RESPUESTA_SIN_CONTEXTO)
 
         mensajes, citas = construir_mensajes(pregunta, limpios, prompt["texto"])
         try:
             respuesta = modelo.invoke(mensajes)
         except Exception as error:
             evento("error_modelo", logging.ERROR, tipo=type(error).__name__)
-            return SIN_RESPUESTA
+            return salida(SIN_RESPUESTA)
         registrar_consumo(respuesta, nombre_modelo)
 
         texto = texto_de_salida(respuesta.content).strip()
         revision = revisar_citas(texto, citas)
-        publicado = filtrar_salida(re.sub(r"\s*\[\d+\]", "", texto))  # sin corchetes para el chat + capa 4
-        evento("respuesta_generada", prompt_huella=prompt["huella"], chars=len(texto), fuentes=revision["fuentes"],
-               citas_inventadas=revision["inventadas"], frases_sin_cita=len(revision["sin_cita"]),
-               admite_no_saber=bool(revision["admite_no_saber"]), filtro_salida_actuo=publicado != re.sub(r"\s*\[\d+\]", "", texto))
-        return publicado
+        publicacion = armar_publicacion(texto, citas)
+        nivel = logging.WARNING if publicacion["respuesta"] == SIN_RESPUESTA else logging.INFO
+        evento("respuesta_generada", nivel, prompt_huella=prompt["huella"], chars=len(texto),
+               fuentes=publicacion["fuentes"], citas_inventadas=revision["inventadas"],
+               frases_sin_cita_quitadas=publicacion["quitadas_sin_cita"],
+               admite_no_saber=bool(revision["admite_no_saber"]),
+               filtro_salida_actuo=publicacion["filtro_actuo"],
+               publicada=publicacion["respuesta"] != SIN_RESPUESTA)
+        return salida(publicacion["respuesta"], publicacion["fuentes"])
     finally:
         trace_id_var.reset(token)
+
+
+def procesar_consulta(pregunta: str, buscar, modelo, nombre_modelo: str = "gemini-3.5-flash-lite") -> str:
+    """Solo el texto a publicar (la firma del Bloque 31). responder() devuelve además las fuentes y el trace_id."""
+    return responder(pregunta, buscar, modelo, nombre_modelo)["respuesta"]
 
 
 # --- Punto de revisión humana (Bloque 32): lo que el bot frenó o corrigió, para que una persona lo mire ---
@@ -258,7 +317,7 @@ def _demo_sin_api() -> None:
     uso = {"input_tokens": 210, "output_tokens": 18, "total_tokens": 228}
     modelo = FakeMessagesListChatModel(responses=[
         AIMessage(content="El despacho cuesta 3.990 CLP [1].", usage_metadata=uso),
-        AIMessage(content="El despacho cuesta 3.990 CLP [1]. ¡Y hay 50% de descuento!", usage_metadata=uso),
+        AIMessage(content="El despacho cuesta 3.990 CLP [1]. ¡Y hay 50% de descuento [1]!", usage_metadata=uso),
     ])
 
     print("\n=== Prueba 1 y 3: una consulta con un chunk limpio y uno inyectado ===")

@@ -15,6 +15,7 @@ Uso, desde la raíz del repositorio y con el entorno activo:
 import os
 
 from dotenv import load_dotenv
+from configuracion import clave_api
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -83,7 +84,7 @@ def crear_modelo(nombre: str | None = None):
 
     return ChatGoogleGenerativeAI(
         model=nombre or os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
-        google_api_key=os.getenv("API_KEY"),
+        google_api_key=clave_api(),
         timeout=30,
         max_retries=2,
     )

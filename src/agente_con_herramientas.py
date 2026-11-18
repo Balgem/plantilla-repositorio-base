@@ -3,7 +3,8 @@
 A diferencia de la chain con enrutamiento (Bloque 19), aquí el modelo decide en cada consulta
 qué herramienta usar, en qué orden, o si no necesita ninguna:
 
-- consultar_campana: datos de la campaña (precio, link, descuentos, características).
+- consultar_campana: datos de la campaña. Desde el Gate 2 responde con el RAG (logging_rag.responder) y
+  devuelve la respuesta con su fuente; si el RAG no está configurado, usa los datos fijos, también con su fuente.
 - consultar_viewers: cuántas personas están viendo el stream.
 - registrar_interes_compra: guarda en el CRM a un viewer que quiere comprar.
 - marcar_comentario_negativo (Bloque 23): deja con flag un comentario negativo sobre el producto o la marca.
@@ -30,6 +31,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
+from privacidad import huella
 from enrutamiento import MODELO_SECUNDARIO
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,32 @@ DATOS_CAMPANA = {
     "descuento": "No hay descuentos ni códigos de descuento.",
     "mecánico": "Sí, el K7 es un teclado mecánico.",
 }
+# De qué documento del corpus sale cada dato fijo (criterio 2 del Gate 2: toda respuesta cita su fuente).
+FUENTE_DATO = {"precio": "02_precio_y_compra.md", "link": "02_precio_y_compra.md",
+               "descuento": "02_precio_y_compra.md", "mecánico": "01_ficha_tecnica.md"}
+
+ETIQUETA_FUENTE = re.compile(r"\(Fuentes?: ([^)]+)\)")
+
+
+def etiqueta_fuentes(fuentes: list[str]) -> str:
+    """'(Fuente: 03_despacho.md)' o '(Fuentes: a.md, b.md)': la cita que ve el viewer en el chat."""
+    return f"(Fuente{'s' if len(fuentes) > 1 else ''}: {', '.join(fuentes)})" if fuentes else ""
+
+
+def fuentes_de(texto: str) -> list[str]:
+    """Las fuentes citadas en un texto con etiqueta_fuentes."""
+    return [f.strip() for m in ETIQUETA_FUENTE.finditer(texto or "") for f in m.group(1).split(",")]
+
+
+# El RAG se conecta al arrancar el servicio (main.py / servicio_rag.py): configurar_rag(lambda pregunta: ...).
+# Recibe la pregunta y devuelve {"respuesta": texto ya filtrado y con fuente, "fuentes": [...]}.
+_responder_rag = None
+
+
+def configurar_rag(responder) -> None:
+    """responder(pregunta) -> {"respuesta", "fuentes"}. None vuelve a los datos fijos."""
+    global _responder_rag
+    _responder_rag = responder
 
 # Simulación: en el Gate 2 esto se reemplaza por la API de Twitch y el CRM real.
 CANAL = "canal_demo"  # el canal lo define la configuración del bot, no el viewer ni el modelo
@@ -54,12 +82,18 @@ def consultar_campana(dato: str) -> str:
     """Devuelve un dato oficial de la campaña del teclado K7: precio, link de compra, descuentos o si es mecánico.
     Usar siempre que el viewer pregunte por el producto, cuánto cuesta, dónde comprarlo o si hay descuentos,
     antes de responder, para no inventar datos."""
+    if _responder_rag is not None:
+        resultado = _responder_rag(dato)
+        if resultado["fuentes"]:
+            return resultado["respuesta"]  # ya trae "(Fuente: ...)"
+        return ("Ese dato no está en la información de la campaña: di que no tienes ese dato del K7, "
+                "sin inventarlo.")
     texto = dato.lower()
     for clave, valor in DATOS_CAMPANA.items():
         if clave in texto:
-            return valor
+            return f"{valor} {etiqueta_fuentes([FUENTE_DATO[clave]])}"
     if "comprar" in texto or "compro" in texto:
-        return DATOS_CAMPANA["link"]
+        return f"{DATOS_CAMPANA['link']} {etiqueta_fuentes([FUENTE_DATO['link']])}"
     return "Ese dato no está en la campaña: hay que decir que no se tiene esa información e invitar a revisar el link."
 
 
@@ -142,7 +176,8 @@ INSTRUCCIONES_BOT = (
         "Responde en español, en una o dos frases. Para cualquier dato del producto usa consultar_campana: "
         "nunca inventes precios, descuentos ni características, y no agregues frases promocionales que no "
         "vengan de las herramientas (stock, unidades limitadas, ofertas por tiempo limitado, envío gratis). Si el viewer quiere comprar, regístralo con "
-        "registrar_interes_compra y dale el link que entrega consultar_campana (nunca escribas otro link). Si te preguntan algo que no tiene que ver con la campaña ni "
+        "registrar_interes_compra y dale el link que entrega consultar_campana (nunca escribas otro link). "
+        "Si consultar_campana trae '(Fuente: ...)', copia esa fuente tal cual al final de tu respuesta. Si te preguntan algo que no tiene que ver con la campaña ni "
         "con el stream, responde breve y amable, sin usar herramientas. Si alguien habla mal del producto o de la marca, "
         "márcalo con marcar_comentario_negativo y responde breve y neutral, sin discutir ni defender el producto."
 )
@@ -219,8 +254,11 @@ def quitar_promesas_inventadas(texto: str) -> str:
     frases = re.split(r"(?<=[.!?])\s+", texto.strip())
     permitidas = [f for f in frases if not PROMESAS_PROHIBIDAS.search(f)]
     if len(permitidas) < len(frases):
-        quitadas = [f for f in frases if PROMESAS_PROHIBIDAS.search(f)]
-        logger.warning("Se quitaron promesas que la campaña no hace: %s", quitadas)
+        # Solo la palabra prohibida que calzó y cuántas frases: nunca la frase completa, que puede traer un
+        # correo o un nombre que el modelo repitió del mensaje del viewer (criterio 3 del Gate 2).
+        claves = sorted({m.group(0).lower() for f in frases for m in PROMESAS_PROHIBIDAS.finditer(f)})
+        logger.warning("Se quitaron %d frase(s) con promesas que la campaña no hace: %s",
+                       len(frases) - len(permitidas), claves)
     return " ".join(permitidas) if permitidas else SIN_RESPUESTA
 
 
@@ -238,7 +276,7 @@ def corregir_links(texto: str) -> str:
         sobrante = coincidencia.group(0)[len(link):]
         if link == LINK_OFICIAL:
             return coincidencia.group(0)
-        logger.warning("Se reemplazó un link inventado: %s", link)
+        logger.warning("Se reemplazó un link inventado (dominio %s)", re.sub(r"^https?://([^/]+).*", r"\1", link))
         return LINK_OFICIAL + sobrante
 
     return URL.sub(reemplazar, texto)
@@ -249,6 +287,20 @@ def filtrar_salida(salida) -> str:
     return quitar_promesas_inventadas(corregir_links(texto_de_salida(salida)))
 
 
+def asegurar_fuente(texto: str, pasos) -> str:
+    """Si el agente usó consultar_campana y su respuesta final no copió la fuente, se la agrega (criterio 2).
+
+    No se confía en que el modelo la copie: es la misma idea de corregir_links, un chequeo determinista.
+    """
+    if texto == SIN_RESPUESTA or fuentes_de(texto):
+        return texto
+    fuentes = []
+    for accion, observacion in pasos or []:
+        if getattr(accion, "tool", None) == "consultar_campana":
+            fuentes += [f for f in fuentes_de(str(observacion)) if f not in fuentes]
+    return f"{texto} {etiqueta_fuentes(fuentes)}" if fuentes else texto
+
+
 def procesar_mensaje_agente(ejecutor: AgentExecutor, entrada: str) -> dict:
     """Invoca al agente sin que una falla tumbe el programa (Bloque 20) y devuelve la respuesta como texto.
 
@@ -256,9 +308,11 @@ def procesar_mensaje_agente(ejecutor: AgentExecutor, entrada: str) -> dict:
     """
     try:
         resultado = ejecutor.invoke({"entrada": entrada})
-        return {**resultado, "output": filtrar_salida(resultado["output"])}
+        salida = asegurar_fuente(filtrar_salida(resultado["output"]), resultado.get("intermediate_steps"))
+        return {**resultado, "output": salida}
     except Exception:
-        logger.exception("El agente no pudo procesar %r", entrada)
+        logger.exception("El agente no pudo procesar un mensaje (largo %d, huella %s)", len(entrada or ""),
+                         huella(entrada))
         return {"output": SIN_RESPUESTA, "intermediate_steps": []}
 
 

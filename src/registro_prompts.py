@@ -169,7 +169,10 @@ if __name__ == "__main__":
     v1, v2, v3 = registro.versiones[:3]
     titulo("Diff v1 -> v2 (Bloque 26 -> Bloque 31)")
     print("\n".join(diff_prompts(v1["texto"], v2["texto"])))
-    titulo("Diff v2 -> v3 (lo que se pide aprobar)")
+    decision = (f"{v3['estado']} por {v3['decidido_por']} el {v3['fecha_decision']}" if v3.get("decidido_por")
+                else "lo que se pide aprobar")
+    titulo(f"Diff v2 -> v3 ({decision})")
     print("\n".join(diff_prompts(v2["texto"], v3["texto"])))
-    print(f"\nRegistro guardado en {ARCHIVO_REGISTRO.relative_to(RAIZ)}. "
-          f"Para decidir sobre la propuesta: python3 src/grafo_supervision.py --proponer {v3['huella']}")
+    siguiente = (f"Para decidir sobre la propuesta: python3 src/grafo_supervision.py --proponer {v3['huella']}"
+                 if v3["estado"] == "propuesta" else f"Versión activa: {registro.activa(PROMPT_RAG)['huella']}.")
+    print(f"\nRegistro guardado en {ARCHIVO_REGISTRO.relative_to(RAIZ)}. {siguiente}")

@@ -51,7 +51,8 @@ def test_las_mitigaciones_reducen_respecto_del_inherente():
 
 
 @pytest.mark.parametrize("cambio, mensaje", [
-    (lambda rs: rs[0].update(supervision=""), "sin punto de supervisión"),
+    (lambda rs: next(r for r in rs if r["probabilidad"] * r["impacto"] >= 9).update(supervision=""),
+     "sin punto de supervisión"),
     (lambda rs: rs[0].update(probabilidad="4"), "entero de 1 a 5"),
     (lambda rs: rs[0].update(impacto=6), "entero de 1 a 5"),
     (lambda rs: rs[0].update(riesgo="seguridad"), "genérico"),

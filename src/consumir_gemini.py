@@ -17,6 +17,8 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
+from configuracion import MENSAJE_SIN_CLAVE, clave_api
+
 load_dotenv()
 
 INSTRUCCION_BOT = (
@@ -44,15 +46,15 @@ def armar_peticion(
     """Valida la entrada y arma la URL, los headers y el body de la petición.
 
     Si se entrega response_schema, se le exige al modelo una respuesta JSON con esa forma.
-    Lanza ValueError si la pregunta o la instrucción están vacías o si falta API_KEY en el .env.
+    Lanza ValueError si la pregunta o la instrucción están vacías o si falta la clave (GEMINI_API_KEY o API_KEY) en el .env.
     """
     if not isinstance(pregunta, str) or not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
     if system_instruction is not None and (not isinstance(system_instruction, str) or not system_instruction.strip()):
         raise ValueError("La instrucción de sistema, si se entrega, no puede estar vacía.")
-    api_key = os.getenv("API_KEY")
+    api_key = clave_api()
     if not api_key:
-        raise ValueError("No se encontró la variable API_KEY en el archivo .env.")
+        raise ValueError(MENSAJE_SIN_CLAVE)
     modelo = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
     headers = {"x-goog-api-key": api_key}
@@ -81,7 +83,7 @@ def enviar_peticion(url: str, headers: dict, body: dict) -> dict:
     codigo = respuesta.status_code
     llave_invalida = codigo == 400 and "API_KEY_INVALID" in respuesta.text
     if codigo in (401, 403) or llave_invalida:
-        raise ValueError("Credencial inválida o sin permiso. Revisa tu API_KEY en el archivo .env.")
+        raise ValueError("Credencial inválida o sin permiso. Revisa GEMINI_API_KEY (o API_KEY) en el archivo .env.")
     if codigo == 429 or codigo >= 500:
         raise TimeoutError(f"El proveedor no pudo procesar la petición (código {codigo}). Hay que esperar y reintentar.")
     if not respuesta.ok:

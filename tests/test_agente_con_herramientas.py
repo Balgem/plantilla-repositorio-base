@@ -169,7 +169,8 @@ def test_quita_la_promesa_que_invento_el_modelo_en_la_prueba_manual(caplog):
     with caplog.at_level(logging.WARNING):
         texto = quitar_promesas_inventadas("El teclado mecánico K7 cuesta 59.990 CLP. ¡Unidades limitadas!")
     assert texto == "El teclado mecánico K7 cuesta 59.990 CLP."
-    assert "Unidades limitadas" in caplog.text  # queda registrado qué se quitó
+    assert "unidades limitadas" in caplog.text  # queda registrado qué promesa se quitó...
+    assert "¡Unidades limitadas!" not in caplog.text  # ...pero no la frase completa (Gate 2, criterio 3)
 
 
 @pytest.mark.parametrize("promesa", ["¡Envío gratis!", "Oferta por tiempo limitado.", "Quedan pocas en stock."])
@@ -191,3 +192,60 @@ def test_si_toda_la_respuesta_es_una_promesa_el_bot_no_responde():
 def test_procesar_mensaje_agente_aplica_el_filtro():
     modelo = ModeloFalso(responses=[AIMessage(content="Cuesta 59.990 CLP. ¡Unidades limitadas!")])
     assert procesar_mensaje_agente(construir_agente(modelo), "[ana] precio?")["output"] == "Cuesta 59.990 CLP."
+
+
+# --- Gate 2: el RAG conectado al agente, y la fuente garantizada en la respuesta ---
+
+
+@pytest.fixture
+def rag_configurado():
+    llamadas = []
+
+    def responder(pregunta):
+        llamadas.append(pregunta)
+        if "peso" in pregunta:
+            return {"respuesta": "No tengo ese dato del K7.", "fuentes": []}
+        return {"respuesta": "El despacho cuesta 3.990 CLP. (Fuente: 03_despacho.md)", "fuentes": ["03_despacho.md"]}
+
+    ag.configurar_rag(responder)
+    yield llamadas
+    ag.configurar_rag(None)
+
+
+def test_consultar_campana_usa_el_rag_cuando_esta_configurado(rag_configurado):
+    assert ag.consultar_campana.invoke({"dato": "cuánto cuesta el envío"}).endswith("(Fuente: 03_despacho.md)")
+    assert rag_configurado == ["cuánto cuesta el envío"]
+    assert "no tienes ese dato" in ag.consultar_campana.invoke({"dato": "peso"})
+
+
+def test_sin_rag_los_datos_fijos_tambien_citan_su_fuente():
+    assert ag.consultar_campana.invoke({"dato": "precio"}).endswith("(Fuente: 02_precio_y_compra.md)")
+    assert ag.consultar_campana.invoke({"dato": "es mecánico?"}).endswith("(Fuente: 01_ficha_tecnica.md)")
+
+
+def test_si_el_modelo_no_copia_la_fuente_se_agrega(rag_configurado):
+    modelo = ModeloFalso(responses=[llamada("consultar_campana", dato="envío"),
+                                    AIMessage(content="El envío cuesta 3.990 CLP.")])
+    resultado = procesar_mensaje_agente(construir_agente(modelo), "[ana] cuánto cuesta el envío?")
+    assert resultado["output"] == "El envío cuesta 3.990 CLP. (Fuente: 03_despacho.md)"
+
+
+def test_si_el_modelo_ya_copio_la_fuente_no_se_duplica(rag_configurado):
+    modelo = ModeloFalso(responses=[llamada("consultar_campana", dato="envío"),
+                                    AIMessage(content="Cuesta 3.990 CLP. (Fuente: 03_despacho.md)")])
+    resultado = procesar_mensaje_agente(construir_agente(modelo), "[ana] envío?")
+    assert resultado["output"].count("Fuente") == 1
+
+
+def test_sin_consultar_la_campana_no_se_inventa_una_fuente():
+    modelo = ModeloFalso(responses=[AIMessage(content="¡Qué buena jugada!")])
+    assert procesar_mensaje_agente(construir_agente(modelo), "[tomas] jajaja")["output"] == "¡Qué buena jugada!"
+
+
+def test_el_error_del_agente_no_deja_el_mensaje_en_el_log(caplog):
+    class Caido(ModeloFalso):
+        def _generate(self, *a, **k):
+            raise ConnectionError("red")
+    with caplog.at_level(logging.ERROR):
+        procesar_mensaje_agente(construir_agente(Caido(responses=[])), "[ana] mi correo es ana@example.com")
+    assert "ana@example.com" not in caplog.text and "El agente no pudo procesar" in caplog.text

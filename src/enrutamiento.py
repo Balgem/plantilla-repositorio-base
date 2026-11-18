@@ -26,6 +26,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 
 from cadena_tres_pasos import DATOS_CAMPANA, SIN_RESPUESTA, crear_modelo, plantilla_clasificar, plantilla_revisar
+from privacidad import huella
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ def procesar_mensaje_seguro(cadena, mensaje: str) -> str:
     try:
         return cadena.invoke({"mensaje": mensaje})
     except Exception:
-        logger.exception("Error procesando el mensaje %r", mensaje)
+        logger.exception("Error procesando el mensaje (largo %d, huella %s)", len(mensaje or ""), huella(mensaje))
         return SIN_RESPUESTA
 
 

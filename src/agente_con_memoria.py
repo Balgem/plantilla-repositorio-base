@@ -30,6 +30,7 @@ from agente_con_herramientas import (
     INSTRUCCIONES_BOT,
     COMENTARIOS_MARCADOS,
     REGISTRO_CRM,
+    asegurar_fuente,
     construir_agente,
     filtrar_salida,
     herramientas_usadas,
@@ -38,6 +39,7 @@ from agente_con_herramientas import (
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
 from enrutamiento import MODELO_SECUNDARIO
 import trazas
+from privacidad import huella
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,7 @@ def limpiar_salida(resultado: dict) -> dict:
     si los guardara, el modelo los vería en el turno siguiente como si fueran ciertos.
     """
     return {**resultado, "respuesta_modelo": texto_de_salida(resultado["output"]),
-            "output": filtrar_salida(resultado["output"])}
+            "output": asegurar_fuente(filtrar_salida(resultado["output"]), resultado.get("intermediate_steps"))}
 
 
 def construir_agente_con_memoria(modelo, modelo_secundario=None, verbose: bool = False) -> RunnableWithMessageHistory:
@@ -125,7 +127,8 @@ def procesar_mensaje_con_memoria(agente: RunnableWithMessageHistory, entrada: st
         resultado = agente.invoke({"entrada": entrada}, {"configurable": {"session_id": usuario}})
         error = None  # 'output' ya viene limpio (limpiar_salida)
     except Exception as excepcion:
-        logger.exception("El agente con memoria no pudo procesar %r", entrada)
+        logger.exception("El agente con memoria no pudo procesar un mensaje (largo %d, huella %s)",
+                         len(entrada or ""), huella(entrada))
         resultado, error = {"output": SIN_RESPUESTA, "intermediate_steps": []}, repr(excepcion)
     trazas.registrar_traza(usuario, entrada, resultado, respuesta_modelo=resultado.get("respuesta_modelo"),
                            error=error)

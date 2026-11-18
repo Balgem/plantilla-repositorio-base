@@ -174,7 +174,14 @@ def demo() -> None:
         registro = RegistroDePrompts(copia)
         propuesta = registro.ultima(PROMPT_RAG)
         if propuesta["estado"] != "propuesta":
-            sys.exit("No hay ninguna versión propuesta: corre primero python3 src/registro_prompts.py")
+            # Ya se decidió todo lo propuesto en el registro real (por ejemplo, se aprobó la v3): la demo propone
+            # una variante SOLO en la copia, para poder mostrar la pausa, la aprobación y el rechazo igual.
+            activa = registro.activa(PROMPT_RAG)
+            propuesta = registro.registrar(PROMPT_RAG, activa["texto"] + " Responde sin emojis.", "demo",
+                                           "versión de demostración (solo en la copia temporal)")
+            registro.guardar()
+            print(f"(No hay propuestas pendientes en el registro real: la demo usa una variante de prueba "
+                  f"{propuesta['huella']} en una copia temporal.)")
         huella = propuesta["huella"]
         app = construir_grafo(InMemorySaver(), copia)
 
@@ -190,13 +197,13 @@ def demo() -> None:
         print(resumen(final), "· activa en el registro:", RegistroDePrompts(copia).activa(PROMPT_RAG)["huella"])
 
         titulo("Prueba 4: rechazo, en un hilo NUEVO (otra copia, con la propuesta pendiente)")
-        shutil.copy(ARCHIVO_REGISTRO, copia)
+        _reabrir_propuesta(copia, huella)  # la prueba 3 ya la decidió en la copia
         thread_2, _ = proponer_despliegue(app, huella)
         final = resolver(app, thread_2, False, huella, por="Cris")
         print(resumen(final), "· activa en el registro:", RegistroDePrompts(copia).activa(PROMPT_RAG)["huella"])
 
         titulo("Lo que la lección no prueba")
-        shutil.copy(ARCHIVO_REGISTRO, copia)
+        _reabrir_propuesta(copia, huella)
         thread_3, _ = proponer_despliegue(app, huella)
         for intento, args in [("aprobar una huella distinta de la revisada", (thread_3, True, "000000000000")),
                               ("aprobar con 'si' en vez de True", (thread_3, "si", huella))]:
@@ -211,6 +218,20 @@ def demo() -> None:
             resolver(app, thread_1, True, huella, por="Cris")
         except ValueError as error:
             print(f"  aprobar otra vez un hilo ya resuelto -> ValueError: {error}")
+
+
+def _reabrir_propuesta(copia: Path, huella: str) -> None:
+    """Solo para la demo: vuelve a dejar 'propuesta' esa versión en la COPIA, con la activa original."""
+    registro = RegistroDePrompts(copia)
+    original = RegistroDePrompts(ARCHIVO_REGISTRO)
+    for v in registro.versiones:
+        anterior = original.buscar(v["nombre"], v["huella"])
+        v["estado"] = anterior["estado"] if anterior else "propuesta"
+        if v["huella"] == huella:
+            v["estado"] = "propuesta"
+            v.pop("decidido_por", None)
+            v.pop("fecha_decision", None)
+    registro.guardar()
 
 
 def resumen(estado: dict) -> str:

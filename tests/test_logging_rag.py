@@ -60,7 +60,7 @@ def test_no_marca_el_corpus_real():
 def test_el_chunk_inyectado_no_llega_al_modelo_y_queda_registrado(eventos):
     m = modelo("El despacho cuesta 3.990 CLP [1].")
     publicado = lr.procesar_consulta("¿cuánto cobran por el envío?", lambda q: [LIMPIO, INYECTADO], m)
-    assert publicado == "El despacho cuesta 3.990 CLP."  # sin corchetes para el chat
+    assert publicado == "El despacho cuesta 3.990 CLP. (Fuente: 03_despacho.md)"  # [1] -> su fuente real
     log = eventos()
     descartes = [e for e in log if e["evento"] == "documento_descartado_por_inyeccion"]
     assert [d["id"] for d in descartes] == ["comentario.md#0"]
@@ -118,7 +118,7 @@ def test_cada_consulta_tiene_su_trace_id_y_no_se_filtra_afuera(eventos):
 
 
 def test_los_warning_de_los_filtros_de_salida_salen_en_json_con_el_trace_id(eventos):
-    lr.procesar_consulta("¿envío?", lambda q: [LIMPIO], modelo("Cuesta 3.990 CLP [1]. ¡Y hay 50% de descuento!"))
+    lr.procesar_consulta("¿envío?", lambda q: [LIMPIO], modelo("Cuesta 3.990 CLP [1]. Y hay 50% de descuento [1]."))
     log = eventos()
     aviso = next(e for e in log if e["level"] == "WARNING")
     assert "50% de descuento" in aviso["msg"] and aviso["trace_id"] == log[0]["trace_id"]
@@ -192,3 +192,76 @@ def test_pendientes_de_revision_agrupa_lo_marcado(eventos, tmp_path):
 def test_admite_no_saber_reconoce_la_forma_de_la_v3():
     from recuperacion import ADMITE_NO_SABER
     assert ADMITE_NO_SABER.search("No tengo ese dato del K7.")
+
+
+# --- Gate 2: criterios no compensables en el pipeline ---
+
+CORREO = "ana.perez@example.com"
+
+
+def test_criterio_1_si_falla_el_retriever_no_hay_excepcion(eventos):
+    def caido(pregunta):
+        raise ConnectionError("503 embeddings")
+    r = lr.responder("¿envío?", caido, modelo("x [1]."))
+    assert r["respuesta"] == SIN_RESPUESTA and r["fuentes"] == []
+    ultimo = eventos()[-1]
+    assert (ultimo["evento"], ultimo["tipo"], ultimo["level"]) == ("error_recuperacion", "ConnectionError", "ERROR")
+
+
+def test_si_todo_el_contexto_se_descarta_no_se_llama_al_modelo(eventos):
+    class NoLlamar(FakeMessagesListChatModel):
+        def _generate(self, *a, **k):
+            raise AssertionError("no se debía llamar al modelo")
+    r = lr.responder("¿precio?", lambda q: [INYECTADO], NoLlamar(responses=[AIMessage(content="x")]))
+    assert r["respuesta"] == lr.RESPUESTA_SIN_CONTEXTO and r["fuentes"] == []
+    assert eventos()[-1]["evento"] == "sin_contexto_confiable" and eventos()[-1]["n_descartados"] == 1
+
+
+def test_indice_vacio_tampoco_llama_al_modelo(eventos):
+    assert lr.responder("¿precio?", lambda q: [], modelo())["respuesta"] == lr.RESPUESTA_SIN_CONTEXTO
+
+
+def test_criterio_2_la_fuente_sale_de_la_metadata_no_del_texto_del_modelo(eventos):
+    r = lr.responder("¿envío?", lambda q: [LIMPIO], modelo("Según manual.pdf, el despacho es gratis mañana."))
+    assert r["respuesta"] == SIN_RESPUESTA and r["fuentes"] == []  # nombró una fuente, pero no citó ninguna real
+    assert eventos()[-1]["publicada"] is False and eventos()[-1]["level"] == "WARNING"
+
+
+def test_las_frases_sin_cita_no_se_publican(eventos):
+    r = lr.responder("¿envío?", lambda q: [LIMPIO], modelo("¡Hola! Cuesta 3.990 CLP [1]. Llega mañana."))
+    assert r == {**r, "respuesta": "Cuesta 3.990 CLP. (Fuente: 03_despacho.md)", "fuentes": ["03_despacho.md"]}
+    assert eventos()[-1]["frases_sin_cita_quitadas"] == 2
+
+
+def test_una_cita_inventada_no_cuenta_como_fuente(eventos):
+    assert lr.responder("¿envío?", lambda q: [LIMPIO], modelo("Cuesta 1 peso [7]."))["respuesta"] == SIN_RESPUESTA
+
+
+def test_varias_fuentes_y_el_no_se_sin_fuente(eventos):
+    otro = chunk("El K7 cuesta 59.990 CLP.", "02_precio_y_compra.md#0")
+    r = lr.responder("¿total?", lambda q: [LIMPIO, otro], modelo("Envío 3.990 CLP [1] y teclado 59.990 CLP [2]."))
+    assert r["respuesta"].endswith("(Fuentes: 03_despacho.md, 02_precio_y_compra.md)")
+    assert lr.responder("¿peso?", lambda q: [LIMPIO], modelo("No tengo ese dato del K7."))["respuesta"] == \
+        "No tengo ese dato del K7."  # no afirma nada: es la excepción documentada al criterio 2
+
+
+def test_criterio_3_el_correo_no_queda_en_el_log_aunque_el_modelo_lo_repita(eventos, caplog):
+    pregunta = f"¿Cuánto cuesta el envío? Mi correo es {CORREO}"
+    respuesta = modelo(f"El despacho cuesta 3.990 CLP [1]. Te escribo a {CORREO} con envío gratis [1].")
+    with caplog.at_level(logging.DEBUG):
+        r = lr.responder(pregunta, lambda q: [LIMPIO], respuesta)
+    assert r["respuesta"] == "El despacho cuesta 3.990 CLP. (Fuente: 03_despacho.md)"
+    texto = json.dumps(eventos(), ensure_ascii=False) + caplog.text
+    assert CORREO not in texto and "ana.perez" not in texto and pregunta not in texto
+    assert eventos()[0]["pregunta_pii"] == ["correo"]  # se sabe QUE traía un correo, no cuál
+
+
+def test_la_huella_es_hmac_y_no_sha256_sin_clave():
+    import hashlib
+    assert lr.huella(CORREO) != hashlib.sha256(CORREO.encode()).hexdigest()[:12]
+    assert lr.huella(CORREO) == lr.huella(CORREO)
+
+
+def test_responder_devuelve_el_trace_id_de_sus_eventos(eventos):
+    r = lr.responder("¿envío?", lambda q: [LIMPIO], modelo("Cuesta 3.990 CLP [1]."))
+    assert {e["trace_id"] for e in eventos()} == {r["trace_id"]}

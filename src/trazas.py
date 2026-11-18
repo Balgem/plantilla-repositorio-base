@@ -1,10 +1,13 @@
 """Traza de decisión del agente (Bloque 23): guardarla y revisarla después.
 
-Cada turno del bot en vivo queda como una línea JSON en trazas_agente.jsonl: quién escribió, qué escribió,
-qué herramientas usó el agente (con argumentos y observación), qué respondió el modelo y qué se publicó
-finalmente después de los filtros. El reporte post-stream (src/reporte_marca.py) se arma desde este archivo.
+Cada turno del bot en vivo queda como una línea JSON en trazas_agente.jsonl: qué herramientas usó el agente
+(con argumentos y observación), qué respondió el modelo y qué se publicó después de los filtros. El reporte
+post-stream (src/reporte_marca.py) se arma desde este archivo.
 
-El archivo tiene nombres y mensajes de viewers: está en .gitignore y NO se sube al repositorio.
+Gate 2 (criterio 3, sin PII ni contenido crudo en los logs): el viewer queda como huella HMAC y su mensaje
+como largo + huella + tipos de PII que traía (src/privacidad.py). El único texto de un viewer que se guarda
+es el comentario que el agente marcó como negativo, REDACTADO (sin correos, teléfonos, RUT ni links), porque
+una persona tiene que leerlo antes de decidir si va al reporte de la marca. El archivo sigue en .gitignore.
 
 Revisión automática (primera pasada; la decisión final es de una persona):
     python3 src/trazas.py
@@ -15,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from agente_con_herramientas import NIVEL_DE_RIESGO, texto_de_salida
+from privacidad import DATOS_PERSONALES, huella, redactar, resumen_texto
 
 logger = logging.getLogger(__name__)
 
@@ -31,27 +35,44 @@ def registrar_traza(session_id: str, entrada: str, resultado: dict, respuesta_mo
     - Si no se puede escribir el archivo, se registra el error y el bot sigue: la traza no debe tumbar el chat.
     """
     acciones = [
-        {"herramienta": accion.tool, "argumentos": accion.tool_input, "observacion": str(observacion)}
+        {"herramienta": accion.tool, "argumentos": sin_pii(accion.tool_input), "observacion": redactar(str(observacion))}
         for accion, observacion in resultado.get("intermediate_steps", [])
     ]
     respuesta_final = texto_de_salida(resultado.get("output", ""))
     respuesta_modelo = respuesta_final if respuesta_modelo is None else texto_de_salida(respuesta_modelo)
     registro = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "session_id": session_id,
-        "entrada": entrada,
+        "viewer": huella(session_id),
+        "entrada": resumen_texto(entrada),
         "acciones": acciones,
-        "respuesta_modelo": respuesta_modelo,
-        "respuesta_final": respuesta_final,
+        "respuesta_modelo": redactar(respuesta_modelo, DATOS_PERSONALES),
+        "respuesta_final": redactar(respuesta_final, DATOS_PERSONALES),
         "filtro_actuo": respuesta_modelo != respuesta_final,
     }
     if error:
-        registro["error"] = error
+        registro["error"] = redactar(error)
     try:
         with open(archivo or ARCHIVO_TRAZAS, "a", encoding="utf-8") as f:
             f.write(json.dumps(registro, ensure_ascii=False, default=str) + "\n")
     except OSError:
-        logger.exception("No se pudo guardar la traza de %s", session_id)
+        logger.exception("No se pudo guardar la traza del viewer %s", huella(session_id))
+
+
+def sin_pii(argumentos):
+    """Argumentos de una herramienta sin datos personales: 'usuario' -> huella; cualquier texto -> redactado."""
+    if not isinstance(argumentos, dict):
+        return redactar(str(argumentos))
+    return {clave: huella(valor) if clave == "usuario" else redactar(valor) if isinstance(valor, str) else valor
+            for clave, valor in argumentos.items()}
+
+
+def describir_entrada(registro: dict) -> str:
+    """Cómo se muestra el mensaje de un turno en la revisión: nunca el texto, solo su largo y su huella."""
+    entrada = registro.get("entrada")
+    if isinstance(entrada, dict):
+        pii = f", traía {'/'.join(entrada['pii'])}" if entrada.get("pii") else ""
+        return f"mensaje de {entrada.get('largo')} caracteres (huella {entrada.get('huella')}{pii})"
+    return "(traza en formato anterior al Gate 2)"
 
 
 def leer_trazas(archivo=None) -> list[dict]:
@@ -119,7 +140,8 @@ def imprimir_reporte(registros: list[dict], hallazgos: dict[str, list[dict]]) ->
     for clave, titulo in TITULOS.items():
         print(f"\n{titulo}: {len(hallazgos[clave])}")
         for registro in hallazgos[clave]:
-            print(f"  - {registro.get('timestamp', '')[:19]} {registro.get('entrada', '')}")
+            print(f"  - {registro.get('timestamp', '')[:19]} viewer {registro.get('viewer', '?')}: "
+                  f"{describir_entrada(registro)}")
             if clave == "filtro_actuo":
                 print(f"      modelo:    {registro.get('respuesta_modelo')}")
                 print(f"      publicado: {registro.get('respuesta_final')}")

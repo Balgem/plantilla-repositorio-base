@@ -1,7 +1,10 @@
 """Indexa el corpus de la campaña y persiste los embeddings en Chroma (Bloque 24).
 
-Indexación (una vez por campaña, o cuando cambian los documentos):
-    python3 src/indexar_corpus.py              # chunking + embeddings + guardar en vectorstore/
+Indexación incremental (Bloque 25): solo calcula embeddings de los chunks nuevos o que cambiaron, y borra
+los que ya no están en el corpus. Correrlo sin cambios en el corpus no llama a la API:
+    python3 src/indexar_corpus.py
+Desde cero (borra la colección y recalcula todo; por ejemplo, si se cambia el modelo de embeddings):
+    python3 src/indexar_corpus.py --desde-cero
 Comprobar que quedó en disco, en un proceso nuevo y SIN recalcular embeddings:
     python3 src/indexar_corpus.py --verificar
 
@@ -12,7 +15,7 @@ Comprobar que quedó en disco, en un proceso nuevo y SIN recalcular embeddings:
 - Persistencia: vectorstore/ en la raíz del repo (en .gitignore: se regenera con este script).
 """
 import argparse
-import os
+import hashlib
 import sys
 from pathlib import Path
 
@@ -21,6 +24,7 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from configuracion import MENSAJE_SIN_CLAVE, clave_api
 from consumir_gemini import con_reintentos
 
 RAIZ = Path(__file__).resolve().parent.parent  # rutas fijas: funciona aunque se corra desde otra carpeta
@@ -60,13 +64,13 @@ def partir_en_chunks(documentos: list[Document], chunk_size: int = CHUNK_SIZE,
 
 
 def crear_embeddings():
-    """Modelo de embeddings de Gemini con la misma llave del proyecto (API_KEY)."""
+    """Modelo de embeddings de Gemini con la misma clave del proyecto (GEMINI_API_KEY o API_KEY)."""
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
     load_dotenv()
-    if not os.getenv("API_KEY"):
-        raise SystemExit('Falta API_KEY. Defínela en tu archivo ".env" y vuelve a ejecutar.')
-    return GoogleGenerativeAIEmbeddings(model=MODELO_EMBEDDINGS, google_api_key=os.getenv("API_KEY"))
+    if not clave_api():
+        raise SystemExit(MENSAJE_SIN_CLAVE)
+    return GoogleGenerativeAIEmbeddings(model=MODELO_EMBEDDINGS, google_api_key=clave_api())
 
 
 def clasificar_error(error: Exception) -> Exception:
@@ -75,32 +79,67 @@ def clasificar_error(error: Exception) -> Exception:
     if "429" in mensaje or "RESOURCE_EXHAUSTED" in mensaje or "503" in mensaje or "UNAVAILABLE" in mensaje:
         return TimeoutError(f"Límite de peticiones o servicio no disponible: {mensaje[:200]}")
     if "API key" in mensaje or "API_KEY_INVALID" in mensaje or "401" in mensaje or "403" in mensaje:
-        return ValueError('La API rechazó la llave. Revisa API_KEY en tu ".env".')
+        return ValueError('La API rechazó la llave. Revisa GEMINI_API_KEY (o API_KEY) en tu ".env".')
     return error
 
 
-def indexar(chunks: list[Document], embeddings, carpeta: Path = CARPETA_VECTORSTORE) -> Chroma:
-    """Borra la colección anterior (si existe) y la vuelve a crear con estos chunks.
+def id_de(chunk: Document) -> str:
+    """Id estable de un chunk: archivo#posición (sirve para rastrearlo hasta su fuente)."""
+    return f"{chunk.metadata['fuente']}#{chunk.metadata['chunk']}"
 
-    Se borra antes porque correr from_documents dos veces sobre la misma carpeta AGREGA los chunks de nuevo
-    (quedarían duplicados), y un documento eliminado del corpus seguiría apareciendo en las búsquedas.
-    Los ids son estables (archivo#posición) para poder rastrear cada chunk hasta su fuente.
+
+def huella_contenido(texto: str) -> str:
+    """Huella del TEXTO del chunk (no es dato de un viewer): si cambia, el chunk se vuelve a embeber."""
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+
+
+def actualizar_indice(chunks: list[Document], embeddings, carpeta: Path = CARPETA_VECTORSTORE,
+                      desde_cero: bool = False) -> tuple[Chroma, dict]:
+    """Actualización incremental con ids explícitos (Bloque 25). Devuelve (índice, resumen de cambios).
+
+    Compara cada chunk con lo que ya está en el índice por id y por huella del contenido:
+    - nuevo (id que no estaba) o cambiado (misma posición, otro texto): se calcula su embedding y se guarda;
+    - borrado (id que ya no está en el corpus): se elimina, para que no siga apareciendo en las búsquedas;
+    - sin cambios: no se toca y NO se llama a la API.
+    Con desde_cero=True se borra la colección completa antes (lo que hacía la versión del Bloque 24).
     """
-    Chroma(collection_name=COLECCION, embedding_function=embeddings,
-           persist_directory=str(carpeta)).delete_collection()
-    try:
-        return Chroma.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            ids=[f"{c.metadata['fuente']}#{c.metadata['chunk']}" for c in chunks],
-            collection_name=COLECCION,
-            persist_directory=str(carpeta),
-        )
-    except Exception as error:  # solo la llamada externa; se traduce para decidir si se reintenta
-        clasificado = clasificar_error(error)
-        if clasificado is error:
-            raise
-        raise clasificado from error
+    if desde_cero:
+        Chroma(collection_name=COLECCION, embedding_function=embeddings,
+               persist_directory=str(carpeta)).delete_collection()
+    indice = Chroma(collection_name=COLECCION, embedding_function=embeddings, persist_directory=str(carpeta))
+    guardados = indice.get(include=["metadatas"])
+    huellas_guardadas = {id_: (meta or {}).get("huella") for id_, meta in zip(guardados["ids"], guardados["metadatas"])}
+
+    actuales = {}
+    for chunk in chunks:
+        chunk = Document(page_content=chunk.page_content,
+                         metadata={**chunk.metadata, "huella": huella_contenido(chunk.page_content)})
+        actuales[id_de(chunk)] = chunk
+    nuevos = [i for i in actuales if i not in huellas_guardadas]
+    cambiados = [i for i in actuales if i in huellas_guardadas and huellas_guardadas[i] != actuales[i].metadata["huella"]]
+    borrados = [i for i in huellas_guardadas if i not in actuales]
+
+    if borrados or cambiados:
+        indice.delete(ids=borrados + cambiados)
+    por_embeber = nuevos + cambiados
+    if por_embeber:
+        try:
+            indice.add_documents([actuales[i] for i in por_embeber], ids=por_embeber)
+        except Exception as error:  # solo la llamada externa; se traduce para decidir si se reintenta
+            clasificado = clasificar_error(error)
+            if clasificado is error:
+                raise
+            raise clasificado from error
+    resumen = {"nuevos": len(nuevos), "cambiados": len(cambiados), "borrados": len(borrados),
+               "sin_cambios": len(actuales) - len(nuevos) - len(cambiados), "total": len(actuales),
+               "embeddings_calculados": len(por_embeber)}
+    return indice, resumen
+
+
+def indexar(chunks: list[Document], embeddings, carpeta: Path = CARPETA_VECTORSTORE,
+            desde_cero: bool = False) -> Chroma:
+    """Igual que actualizar_indice, devolviendo solo el índice (la firma que usan los bloques anteriores)."""
+    return actualizar_indice(chunks, embeddings, carpeta, desde_cero)[0]
 
 
 def conectar_indice(embeddings, carpeta: Path = CARPETA_VECTORSTORE) -> Chroma:
@@ -129,36 +168,36 @@ def verificar(embeddings) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Indexa el corpus de la campaña en Chroma.")
+    parser = argparse.ArgumentParser(description="Indexa el corpus de la campaña en Chroma (incremental).")
     parser.add_argument("--verificar", action="store_true", help="solo reconectar y contar, sin indexar")
+    parser.add_argument("--desde-cero", action="store_true", help="borrar la colección y recalcular todo")
     argumentos = parser.parse_args()
 
+    load_dotenv()
     embeddings = crear_embeddings()
     if argumentos.verificar:
         sys.exit(0 if verificar(embeddings) else 1)
 
-    titulo("PASO 1: chunking + embeddings + indexación")
+    titulo("PASO 1: chunking + actualización incremental del índice")
     documentos = cargar_corpus()
     chunks = partir_en_chunks(documentos)
-    print(f"Corpus original: {len(documentos)} documentos")
-    print(f"Después de chunking: {len(chunks)} chunks (chunk_size={CHUNK_SIZE}, chunk_overlap={CHUNK_OVERLAP})\n")
-    for chunk in chunks:
-        texto = chunk.page_content.replace("\n", " ")
-        print(f"  {chunk.metadata['fuente']}#{chunk.metadata['chunk']} ({len(chunk.page_content)}): {texto[:80]}...")
-    print(f"\nCalculando {len(chunks)} embeddings e indexando en Chroma (esto llama a la API)...")
+    print(f"Corpus: {len(documentos)} documentos -> {len(chunks)} chunks "
+          f"(chunk_size={CHUNK_SIZE}, chunk_overlap={CHUNK_OVERLAP})")
     try:
-        _, intentos = con_reintentos(lambda: indexar(chunks, embeddings))
+        (_, resumen), intentos = con_reintentos(
+            lambda: actualizar_indice(chunks, embeddings, desde_cero=argumentos.desde_cero))
     except (TimeoutError, ValueError) as error:
         print(f"No se pudo indexar: {error}")
         raise SystemExit(1)
-    print(f"Indexados {len(chunks)} chunks en {CARPETA_VECTORSTORE.name}/ (intentos: {intentos})")
+    print(f"Nuevos: {resumen['nuevos']} · cambiados: {resumen['cambiados']} · borrados: {resumen['borrados']} · "
+          f"sin cambios: {resumen['sin_cambios']} · embeddings calculados: {resumen['embeddings_calculados']} "
+          f"(intentos: {intentos})")
 
     titulo("PASO 2: confirmando que quedó en disco, no solo en memoria")
     mostrar_carpeta()
-
     verificar(embeddings)
 
-    titulo("PASO 4: búsqueda por significado (1 embedding: el de la pregunta)")
+    titulo("PASO 3: búsqueda por significado (1 embedding: el de la pregunta)")
     indice = conectar_indice(embeddings)
     for pregunta in ["¿qué valor tiene el teclado?", "¿me sirve si uso Mac?", "¿cuánto se demora en llegar a Concepción?"]:
         [(chunk, distancia)] = indice.similarity_search_with_score(pregunta, k=1)
