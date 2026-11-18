@@ -17,7 +17,7 @@
     "fecha": "2026-11-18",
     "nota": "separa roles, declara <contexto> como dato e instrucción anti-inyección (Bloque 31)",
     "modelo": "gemini-3.5-flash-lite",
-    "estado": "activa"
+    "estado": "reemplazada"
   },
   {
     "nombre": "sistema_rag",
@@ -27,6 +27,8 @@
     "fecha": "2026-11-18",
     "nota": "al no saber, no nombrar 'el contexto' ante el viewer (corrida real del Bloque 31)",
     "modelo": "gemini-3.5-flash-lite",
-    "estado": "propuesta"
+    "estado": "activa",
+    "decidido_por": "cris",
+    "fecha_decision": "2026-11-18"
   }
 ]
