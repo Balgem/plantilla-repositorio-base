@@ -1,0 +1,340 @@
+{
+  "fecha": "2026-11-18",
+  "prompt_actual": {
+    "muestra": 20,
+    "formato_incumplido": 0,
+    "fuera_de_lista_aun_normalizando": 0,
+    "aciertos": 20,
+    "filas": [
+      {
+        "mensaje": "cuánto sale el teclado que usas??",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "ese teclado tiene ñ o es gringo",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "oye y llega a regiones o solo stgo",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "los switches son rojos? se escuchan mucho?",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "sirve pa la play o solo pc",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "lo quiero!! pasa el link",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "ya me convenciste, dónde lo compro",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "me llevo 2, uno pa mi hermano",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "cuando me paguen el viernes me lo compro sí o sí 🔥",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "acabo de pedir uno jajaja",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "SIGAN MI CANAL, seguidores gratis en bit.ly/regalo",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "gana skins gratis aquí 👉 skins-free.example",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "compro y vendo cuentas, escríbanme al priv",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "follow x follow?? 🙏🙏",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "vendo teclado igual pero más barato, hablame",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "jajaja qué buena jugada",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "hola chat!! llegué tarde",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "qué mala esa partida, juegas pésimo hoy",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "a qué hora termina el stream?",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "GG",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      }
+    ]
+  },
+  "salida_estructurada": {
+    "muestra": 20,
+    "formato_incumplido": 0,
+    "fuera_de_lista_aun_normalizando": 0,
+    "aciertos": 20,
+    "filas": [
+      {
+        "mensaje": "cuánto sale el teclado que usas??",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "ese teclado tiene ñ o es gringo",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "oye y llega a regiones o solo stgo",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "los switches son rojos? se escuchan mucho?",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "sirve pa la play o solo pc",
+        "esperada": "pregunta_producto",
+        "cruda": "pregunta_producto",
+        "formato_ok": true,
+        "categoria_normalizada": "pregunta_producto",
+        "correcta": true
+      },
+      {
+        "mensaje": "lo quiero!! pasa el link",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "ya me convenciste, dónde lo compro",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "me llevo 2, uno pa mi hermano",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "cuando me paguen el viernes me lo compro sí o sí 🔥",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "acabo de pedir uno jajaja",
+        "esperada": "interes_compra",
+        "cruda": "interes_compra",
+        "formato_ok": true,
+        "categoria_normalizada": "interes_compra",
+        "correcta": true
+      },
+      {
+        "mensaje": "SIGAN MI CANAL, seguidores gratis en bit.ly/regalo",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "gana skins gratis aquí 👉 skins-free.example",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "compro y vendo cuentas, escríbanme al priv",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "follow x follow?? 🙏🙏",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "vendo teclado igual pero más barato, hablame",
+        "esperada": "spam",
+        "cruda": "spam",
+        "formato_ok": true,
+        "categoria_normalizada": "spam",
+        "correcta": true
+      },
+      {
+        "mensaje": "jajaja qué buena jugada",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "hola chat!! llegué tarde",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "qué mala esa partida, juegas pésimo hoy",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "a qué hora termina el stream?",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      },
+      {
+        "mensaje": "GG",
+        "esperada": "otro",
+        "cruda": "otro",
+        "formato_ok": true,
+        "categoria_normalizada": "otro",
+        "correcta": true
+      }
+    ]
+  },
+  "ejemplos_etiquetados": 25
+}
