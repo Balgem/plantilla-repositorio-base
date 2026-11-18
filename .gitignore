@@ -27,3 +27,6 @@ reporte_marca.md
 
 # Índice de embeddings (se regenera con python3 src/indexar_corpus.py)
 vectorstore/
+
+# Logs del flujo RAG (Bloque 31): pueden tener huellas de viewers
+logs/

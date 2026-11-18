@@ -202,7 +202,10 @@ def texto_de_salida(salida) -> str:
 # el modelo igual escribió "¡Unidades limitadas!": una instrucción no garantiza el comportamiento.
 PROMESAS_PROHIBIDAS = re.compile(
     r"unidades limitadas|últimas unidades|ultimas unidades|stock|por tiempo limitado|oferta|"
-    r"env[ií]o gratis|gratis|2x1|precio especial",
+    r"env[ií]o gratis|gratis|2x1|precio especial|"
+    # Descuentos con cifra ("50% de descuento", "descuento del 20 %"). "descuento" a secas no se puede prohibir:
+    # borraría la respuesta correcta "No hay descuentos". Hueco encontrado en el Bloque 31 (inyección de prompt).
+    r"\d+\s*%\s*(?:de\s+)?(?:dcto|descuento)|descuento\s+(?:del?\s+)?\d+\s*%",
     re.IGNORECASE,
 )
 
