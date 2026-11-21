@@ -25,7 +25,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 
-from cadena_tres_pasos import DATOS_CAMPANA, SIN_RESPUESTA, crear_modelo, plantilla_clasificar, plantilla_revisar
+from cadena_tres_pasos import DATOS_CAMPANA, SIN_RESPUESTA, construir_clasificador, crear_modelo, plantilla_revisar
 from privacidad import huella
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,8 @@ plantilla_compra = PromptTemplate.from_template(
 
 
 def construir_paso_clasificacion(modelo):
-    """Clasifica el mensaje y normaliza la respuesta (minúsculas, sin espacios) antes de comparar."""
-    return plantilla_clasificar | modelo | StrOutputParser() | (lambda texto: texto.strip().lower())
+    """Clasifica el mensaje: con salida estructurada si el modelo la soporta (Gate 2), si no, texto normalizado."""
+    return construir_clasificador(modelo)
 
 
 def construir_ruta(plantilla, modelo):

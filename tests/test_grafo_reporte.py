@@ -91,3 +91,18 @@ def test_checkpointer_durable_otra_app_retoma_la_decision(archivos, tmp_path):
     assert [h for h, _ in rm.pendientes(otra)] == [thread_id]
     rm.resolver(otra, thread_id, True, ["c1"], por="Cris")
     assert archivos["reporte"].exists() and rm.pendientes(otra) == []
+
+
+def test_los_intentos_de_inyeccion_se_ven_en_la_revision_y_a_la_marca_solo_llega_el_numero(tmp_path):
+    trazas = tmp_path / "trazas.jsonl"
+    filas = [{"timestamp": "t1", "viewer": "aaaaaaaaaaaa", "acciones": [], "inyeccion": ["revelar_prompt"]},
+             {"timestamp": "t2", "viewer": "aaaaaaaaaaaa", "acciones": [], "inyeccion": ["cambio_de_rol"]},
+             {"timestamp": "t3", "viewer": "bbbbbbbbbbbb", "acciones": [], "inyeccion": ["ignorar_instrucciones"]}]
+    trazas.write_text("".join(json.dumps(f) + "\n" for f in filas), encoding="utf-8")
+    app = rm.construir_grafo(InMemorySaver(), trazas, tmp_path / "reporte.md")
+    thread_id, valor = rm.preparar_reporte(app)
+    assert [i["viewer"] for i in valor["intentos_inyeccion"]] == ["aaaaaaaaaaaa", "aaaaaaaaaaaa", "bbbbbbbbbbbb"]
+    rm.resolver(app, thread_id, True, [], por="Cris")
+    enviado = (tmp_path / "reporte.md").read_text(encoding="utf-8")
+    assert "Mensajes bloqueados por intentar manipular al bot: 3 (de 2 viewer/s" in enviado
+    assert "aaaaaaaaaaaa" not in enviado and "revelar_prompt" not in enviado

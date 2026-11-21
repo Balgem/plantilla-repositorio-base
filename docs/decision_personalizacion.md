@@ -46,3 +46,7 @@ Descarto el fine-tuning completo porque no tengo los datos (25 de 200) y no hay 
 - **Datos:** tengo 25 ejemplos etiquetados (5 por categoría) y necesito 200 balanceados, 40 por categoría. Me faltan **175**.
 - **Costo de etiquetado:** las categorías raras deciden el costo. Si el 2 % del chat es intención de compra, juntar 40 ejemplos reales obliga a leer unos **2.000 mensajes**. A 15 segundos por mensaje son **8,3 horas, unos USD 167** a USD 20/h, más un 10 % de segunda revisión. Las trazas del Bloque 23 lo abaratan, porque permiten filtrar los turnos donde el agente ya registró una compra o marcó un comentario.
 - **Cuarta categoría:** `comentario_negativo` (Bloque 23) no está en el prompt del clasificador, porque hoy lo detecta el agente con una herramienta. Esta medición no la evaluó. Si se agrega al clasificador, hay que volver a medir antes de decidir.
+
+## Actualización (Gate 2, 2026-11-18): la mejora quedó implementada
+
+El paso 1 de la chain (`construir_clasificador` en `src/cadena_tres_pasos.py`, que también usa `src/enrutamiento.py`) clasifica ahora con `with_structured_output(Clasificacion)`: la API solo puede devolver una de las 4 categorías. Es el mismo esquema con que medí 20/20 en la evidencia de arriba, así que no cambia el resultado: cierra la puerta a que una respuesta con mayúsculas, punto o una frase llegue a la bifurcación. Con un modelo que no soporta salida estructurada (los modelos falsos de las pruebas), se usa el camino de texto del Bloque 18.

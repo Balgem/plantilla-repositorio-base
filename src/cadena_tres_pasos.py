@@ -1,6 +1,8 @@
 """Chain de tres pasos con LangChain para el bot de chat: clasificar → redactar → revisar.
 
 1. Clasificar: decide qué tipo de mensaje es (pregunta_producto, interes_compra, spam u otro).
+   Desde el Gate 2 con salida estructurada (with_structured_output + el esquema Clasificacion): la API solo puede
+   devolver una de las 4 categorías. Es la mejora que dejó la decisión del Bloque 30 (docs/decision_personalizacion.md).
 2. Redactar: escribe la respuesta para el chat según esa categoría, usando solo los datos de la campaña.
 3. Revisar: compara el borrador con los datos de la campaña y corrige cualquier dato inventado
    (precio, descuento, envío) antes de publicarlo.
@@ -12,13 +14,19 @@ vimos que la métrica no detecta un precio falso ni una negación ausente.
 Uso, desde la raíz del repositorio y con el entorno activo:
     python3 src/cadena_tres_pasos.py
 """
+import logging
 import os
+from typing import Literal
 
 from dotenv import load_dotenv
 from configuracion import clave_api
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 DATOS_CAMPANA = (
     "Producto: teclado mecánico K7. Precio: 59.990 CLP. Link de compra: https://ejemplo.cl/r/k7. "
@@ -32,6 +40,34 @@ plantilla_clasificar = PromptTemplate.from_template(
     "Responde solo con una de estas palabras, sin nada más: pregunta_producto, interes_compra, spam u otro.\n\n"
     "Mensaje: {mensaje}"
 )
+
+CATEGORIAS_CHAIN = ("pregunta_producto", "interes_compra", "spam", "otro")
+
+
+class Clasificacion(BaseModel):
+    """Salida estructurada del paso 1: la API solo puede devolver una de las categorías de la chain."""
+
+    categoria: Literal["pregunta_producto", "interes_compra", "spam", "otro"] = Field(
+        description="Tipo de mensaje del chat de Twitch con una campaña publicitaria.")
+
+
+def construir_clasificador(modelo):
+    """Paso 1: plantilla -> modelo -> categoría (str).
+
+    - Con un modelo de chat que soporta salida estructurada (Gemini): with_structured_output(Clasificacion).
+      No hace falta normalizar mayúsculas ni puntos: la respuesta ya viene validada contra la lista cerrada.
+    - Con un modelo que no la soporta (los modelos falsos de las pruebas): el camino de texto del Bloque 18,
+      con .strip().lower().
+    """
+    if isinstance(modelo, BaseChatModel):
+        try:
+            estructurado = modelo.with_structured_output(Clasificacion)
+        except NotImplementedError:
+            estructurado = None
+        if estructurado is not None:
+            return plantilla_clasificar | estructurado | (lambda resultado: resultado.categoria)
+    return plantilla_clasificar | modelo | StrOutputParser() | (lambda texto: texto.strip().lower())
+
 
 # Paso 2 · Responsabilidad: escribir la respuesta para el chat según la categoría.
 plantilla_redactar = PromptTemplate.from_template(
@@ -59,14 +95,14 @@ def construir_cadena(modelo):
 
     Entrada: {"mensaje": "..."}. Salida: el texto final para publicar en el chat (str).
     """
-    paso_clasificar = plantilla_clasificar | modelo | StrOutputParser()
+    paso_clasificar = construir_clasificador(modelo)
     paso_redactar = plantilla_redactar | modelo | StrOutputParser()
     paso_revisar = plantilla_revisar | modelo | StrOutputParser()
 
     return (
         # Agrega los datos de la campaña y la categoría, sin perder el mensaje original
         RunnablePassthrough.assign(campana=lambda _: DATOS_CAMPANA)
-        | RunnablePassthrough.assign(categoria=paso_clasificar | (lambda texto: texto.strip().lower()))
+        | RunnablePassthrough.assign(categoria=paso_clasificar)
         # El borrador se agrega al mismo diccionario, para que el revisor tenga también la campaña
         | RunnablePassthrough.assign(borrador=paso_redactar)
         | paso_revisar

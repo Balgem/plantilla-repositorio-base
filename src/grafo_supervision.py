@@ -58,7 +58,9 @@ def construir_grafo(checkpointer, archivo_registro: Path = ARCHIVO_REGISTRO):
     def proponer(estado: EstadoDespliegue):
         """Valida la propuesta ANTES de pedir aprobación: que exista, que esté propuesta, y arma el diff."""
         registro = RegistroDePrompts(archivo_registro)
-        nombre = estado.get("nombre", PROMPT_RAG)
+        # Sin nombre, se deduce de la huella: así --proponer sirve para el prompt del RAG y para el del agente
+        nombre = estado.get("nombre") or next((v["nombre"] for v in registro.versiones
+                                               if v["huella"] == estado["huella_nueva"]), PROMPT_RAG)
         nueva = registro.buscar(nombre, estado["huella_nueva"])
         if nueva is None or nueva["estado"] != "propuesta":
             raise ValueError(f"{estado['huella_nueva']} no es una versión propuesta de {nombre} "
@@ -71,6 +73,7 @@ def construir_grafo(checkpointer, archivo_registro: Path = ARCHIVO_REGISTRO):
         """Solo pregunta. Se vuelve a ejecutar al reanudar: aquí no va nada que no se pueda repetir."""
         decision = interrupt({
             "motivo": MOTIVO,
+            "nombre": estado["nombre"],
             "huella_propuesta": estado["huella_nueva"],
             "huella_activa": estado["huella_activa"],
             "diff": estado["diff"],
@@ -110,7 +113,7 @@ def config_de(thread_id: str) -> dict:
     return {"configurable": {"thread_id": thread_id}}
 
 
-def proponer_despliegue(app, huella: str, nombre: str = PROMPT_RAG) -> tuple[str, dict]:
+def proponer_despliegue(app, huella: str, nombre: str | None = None) -> tuple[str, dict]:
     """Corre hasta el interrupt con un thread_id NUEVO. Devuelve (thread_id, lo que la persona tiene que revisar).
 
     Si esa versión ya espera una decisión en otro hilo, no abre un segundo: dos aprobaciones pendientes para lo
@@ -120,7 +123,8 @@ def proponer_despliegue(app, huella: str, nombre: str = PROMPT_RAG) -> tuple[str
         if valor["huella_propuesta"] == huella:
             raise ValueError(f"{huella} ya espera una decisión en {otro}")
     thread_id = nuevo_thread_id()
-    resultado = app.invoke({"nombre": nombre, "huella_nueva": huella}, config=config_de(thread_id))
+    entrada = {"huella_nueva": huella, **({"nombre": nombre} if nombre else {})}
+    resultado = app.invoke(entrada, config=config_de(thread_id))
     return thread_id, resultado["__interrupt__"][0].value
 
 
@@ -157,7 +161,7 @@ def app_durable(archivo: Path = ARCHIVO_CHECKPOINTS, archivo_registro: Path = AR
 
 
 def mostrar(valor: dict) -> None:
-    print(f"motivo: {valor['motivo']}")
+    print(f"motivo: {valor['motivo']}" + (f" ({valor['nombre']})" if valor.get("nombre") else ""))
     print(f"activa {valor['huella_activa']}  ->  propuesta {valor['huella_propuesta']}")
     print("\n".join("   " + linea for linea in valor["diff"]))
 

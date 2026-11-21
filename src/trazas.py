@@ -26,7 +26,7 @@ ARCHIVO_TRAZAS = Path("trazas_agente.jsonl")
 
 
 def registrar_traza(session_id: str, entrada: str, resultado: dict, respuesta_modelo=None,
-                    error: str | None = None, archivo=None) -> None:
+                    error: str | None = None, archivo=None, inyeccion: list[str] | None = None) -> None:
     """Agrega una interacción del agente a trazas_agente.jsonl (una línea JSON por turno).
 
     - respuesta_modelo: lo que escribió el modelo ANTES de filtrar_salida. Si es distinta de la publicada,
@@ -51,6 +51,8 @@ def registrar_traza(session_id: str, entrada: str, resultado: dict, respuesta_mo
     }
     if error:
         registro["error"] = redactar(error)
+    if inyeccion:  # Gate 2: el mensaje se bloqueó por intento de inyección (nombres de los patrones, no el texto)
+        registro["inyeccion"] = inyeccion
     try:
         with open(archivo or ARCHIVO_TRAZAS, "a", encoding="utf-8") as f:
             f.write(json.dumps(registro, ensure_ascii=False, default=str) + "\n")
@@ -104,7 +106,7 @@ def revisar_trazas(registros: list[dict]) -> dict[str, list[dict]]:
     - errores: turnos donde el agente falló y el bot no respondió.
     """
     hallazgos = {"repeticiones": [], "riesgo_alto": [], "filtro_actuo": [], "comentarios_marcados": [],
-                 "errores": []}
+                 "errores": [], "intentos_inyeccion": []}
     for registro in registros:
         herramientas = [a.get("herramienta") for a in registro.get("acciones", [])]
         if any(actual == anterior for anterior, actual in zip(herramientas, herramientas[1:])):
@@ -117,6 +119,8 @@ def revisar_trazas(registros: list[dict]) -> dict[str, list[dict]]:
             hallazgos["comentarios_marcados"].append(registro)
         if registro.get("error"):
             hallazgos["errores"].append(registro)
+        if registro.get("inyeccion"):
+            hallazgos["intentos_inyeccion"].append(registro)
     return hallazgos
 
 
@@ -126,6 +130,7 @@ TITULOS = {
     "filtro_actuo": "🧩 Un filtro cambió la respuesta del modelo",
     "comentarios_marcados": "🚩 Comentarios negativos marcados (pasan por aprobación en el reporte)",
     "errores": "⚠️ El agente falló y no respondió",
+    "intentos_inyeccion": "🛡️ Mensajes bloqueados por intento de inyección (no llegaron al agente)",
 }
 
 

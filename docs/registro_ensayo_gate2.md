@@ -61,3 +61,13 @@ Copia del repositorio sin `venv`, sin `.env`, sin `vectorstore/` ni `logs/`; ent
 | ¿cuánto pesa el teclado? | No tengo ese dato del K7. | — (admite no saber) | 336 / 8 | 0,0001208 USD | ~7 s |
 
   El índice se actualizó con 15 embeddings en 1,43 s: el índice anterior no tenía la huella del contenido que usa la actualización incremental, así que esta vez se recalculó entero, una sola vez. Prompt activo: `959478c666ac` (v3). Sin errores, 0 aprobaciones pendientes.
+
+## Después de la entrega: los dos pendientes que quedaban (2026-11-18)
+
+| Pendiente | Qué se hizo | Pruebas |
+|---|---|---|
+| Salida estructurada en el paso 1 de la chain (decisión del Bloque 30) | `construir_clasificador`: `with_structured_output(Clasificacion)` con Gemini; camino de texto con modelos que no la soportan | 4 nuevas en `tests/test_cadena_tres_pasos.py` |
+| Marcar al viewer que intenta inyectar | El mensaje no llega al agente ni a su memoria; la traza guarda la huella del viewer y los patrones (no el texto); la revisión del reporte los muestra y a la marca le llega solo el número | `tests/test_supervision_y_trazas.py`, `tests/test_grafo_reporte.py` |
+| Versionar `INSTRUCCIONES_BOT` del agente | Sus 4 versiones reales (Bloques 21, 22, 23 y Gate 2) en el mismo registro, con la fecha de su commit; el agente lee la activa. El cambio del Gate 2 había entrado **sin aprobación**: quedó como propuesta para decidirla con el grafo | `tests/test_registro_prompts.py`, `tests/test_grafo_supervision.py` |
+
+Total: 376 pruebas, `test_gate2.py` 4 de 4.

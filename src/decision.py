@@ -17,11 +17,10 @@ pisa: el esqueleto nuevo se escribe en docs/decision_personalizacion_esqueleto.m
 import argparse
 import json
 from datetime import date
-from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 
+from cadena_tres_pasos import Clasificacion  # el esquema vive con la chain desde el Gate 2
 from dataset_tuning import EJEMPLOS_RAW, REGLA_RESPONDER
 from indexar_corpus import RAIZ
 
@@ -32,13 +31,6 @@ ARCHIVO_EVIDENCIA = RAIZ / "docs" / "evidencia_clasificador.json"
 ARCHIVO_DECISION = RAIZ / "docs" / "decision_personalizacion.md"
 
 MUESTRA = [(texto, s["categoria"]) for texto, s in EJEMPLOS_RAW if s["categoria"] in CATEGORIAS_CHAIN]
-
-
-class Clasificacion(BaseModel):
-    """Salida estructurada: la API solo puede devolver una de las categorías de la chain."""
-
-    categoria: Literal["pregunta_producto", "interes_compra", "spam", "otro"] = Field(
-        description="Tipo de mensaje del chat de Twitch con una campaña publicitaria.")
 
 
 # --- Paso 0: evidencia ---

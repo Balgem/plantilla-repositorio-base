@@ -116,3 +116,12 @@ def test_la_demo_no_toca_el_registro_real(capsys):
     gs.demo()
     assert rp.ARCHIVO_REGISTRO.read_text(encoding="utf-8") == antes
     assert "activada" in capsys.readouterr().out
+
+
+def test_el_grafo_deduce_que_la_propuesta_es_del_agente(app, copia):
+    v4 = rp.huella_prompt(rp.V4_AGENTE)
+    thread_id, valor = gs.proponer_despliegue(app, v4)
+    assert valor["nombre"] == rp.PROMPT_AGENTE and valor["huella_activa"] == rp.huella_prompt(rp.V3_AGENTE)
+    gs.resolver(app, thread_id, True, v4, por="Cris")
+    registro = RegistroDePrompts(copia)
+    assert registro.activa(rp.PROMPT_AGENTE)["huella"] == v4 and registro.activa(PROMPT_RAG)["huella"] == V2

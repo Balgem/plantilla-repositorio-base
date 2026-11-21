@@ -30,14 +30,16 @@ MI_PUNTAJE = {
     "costo_latencia": (80, "Latencia por etapa y costo real documentados (≈0,13 USD por 1.000 respuestas); consumo en "
                            "cada log",
                        "la generación tarda entre 2 y 9 s y no la optimicé"),
-    "personalizacion": (85, "Decisión con evidencia propia (20/20) y análisis de sensibilidad: no personalizar",
-                        "no implementé la mejora sugerida (salida estructurada en el clasificador)"),
+    "personalizacion": (88, "Decisión con evidencia propia (20/20) y análisis de sensibilidad: no personalizar; la "
+                            "mejora que sugería (salida estructurada en el clasificador) quedó implementada",
+                        "el dataset para PEFT es chico (25 ejemplos), aunque hoy no hace falta"),
     "observabilidad": (92, "Logs JSON con trace_id por consulta, consumo, huella del prompt, auditoría por respuesta "
                            "y revisión de lo marcado (--revisar)",
                        "los logs son archivos locales: no hay un tablero"),
-    "seguridad_gobernanza": (85, "Inyección en 4 capas, versionado con aprobación, dos puntos de supervisión durables, "
-                                 "matriz de 12 riesgos, PII fuera de los logs",
-                             "el detector se esquiva con sinónimos; la supervisión de la inyección directa es parcial"),
+    "seguridad_gobernanza": (88, "Inyección en 4 capas (RAG y agente), los dos prompts versionados con aprobación, dos "
+                                 "puntos de supervisión durables, viewers que inyectan marcados para revisión, matriz "
+                                 "de 12 riesgos, PII fuera de los logs",
+                             "el detector se esquiva con sinónimos (lo cubren la cita obligatoria y el filtro de salida)"),
 }
 
 CRITERIOS = {

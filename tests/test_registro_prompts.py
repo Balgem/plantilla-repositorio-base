@@ -4,7 +4,11 @@ import json
 import pytest
 
 import registro_prompts as rp
-from registro_prompts import PROMPT_RAG, RegistroDePrompts, diff_prompts, huella_prompt
+from registro_prompts import PROMPT_AGENTE, PROMPT_RAG, RegistroDePrompts, diff_prompts, huella_prompt
+
+
+def de(registro, nombre=PROMPT_RAG):
+    return [v for v in registro.versiones if v["nombre"] == nombre]
 
 
 @pytest.fixture
@@ -15,7 +19,7 @@ def registro(tmp_path):
 
 
 def test_prueba_1_huellas_distintas_y_ultima_es_la_mas_reciente(registro):
-    huellas = [v["huella"] for v in registro.versiones]
+    huellas = [v["huella"] for v in de(registro)]
     assert len(huellas) == len(set(huellas)) == 3
     assert registro.ultima(PROMPT_RAG)["texto"] == rp.V3_NO_SE_PARA_EL_VIEWER
 
@@ -23,7 +27,7 @@ def test_prueba_1_huellas_distintas_y_ultima_es_la_mas_reciente(registro):
 def test_ultima_no_es_lo_mismo_que_activa(registro):
     assert registro.ultima(PROMPT_RAG)["estado"] == "propuesta"
     assert registro.activa(PROMPT_RAG)["texto"] == rp.V2_ANTI_INYECCION
-    assert [v["estado"] for v in registro.versiones] == ["reemplazada", "activa", "propuesta"]
+    assert [v["estado"] for v in de(registro)] == ["reemplazada", "activa", "propuesta"]
 
 
 def test_cada_version_guarda_modelo_autor_fecha_y_nota(registro):
@@ -35,7 +39,7 @@ def test_cada_version_guarda_modelo_autor_fecha_y_nota(registro):
 def test_el_mismo_texto_no_crea_otra_version(registro):
     registro.registrar(PROMPT_RAG, rp.V2_ANTI_INYECCION, "otra persona", "sin cambios")
     rp.cargar_historial(registro)  # correr el script dos veces tampoco duplica
-    assert len(registro.versiones) == 3
+    assert len(de(registro)) == 3 and len(de(registro, PROMPT_AGENTE)) == 4
 
 
 def test_una_sola_letra_cambia_la_huella():
@@ -54,7 +58,7 @@ def test_activar_reemplaza_la_anterior_y_registra_quien(registro):
     v3 = registro.ultima(PROMPT_RAG)["huella"]
     registro.activar(PROMPT_RAG, v3, "Cris")
     assert registro.activa(PROMPT_RAG)["huella"] == v3 and registro.activa(PROMPT_RAG)["decidido_por"] == "Cris"
-    assert sum(v["estado"] == "activa" for v in registro.versiones) == 1
+    assert sum(v["estado"] == "activa" for v in de(registro)) == 1
 
 
 def test_no_se_decide_dos_veces_ni_se_activa_algo_rechazado(registro):
@@ -82,5 +86,34 @@ def test_el_registro_real_del_repo_es_consistente():
     """Si alguien edita a mano prompts/registro_versiones.json (el texto o el estado), esta prueba lo detecta."""
     versiones = json.loads(rp.ARCHIVO_REGISTRO.read_text(encoding="utf-8"))
     assert all(v["huella"] == huella_prompt(v["texto"]) for v in versiones)
-    assert sum(v["estado"] == "activa" for v in versiones if v["nombre"] == PROMPT_RAG) == 1
+    for nombre in (PROMPT_RAG, PROMPT_AGENTE):
+        assert sum(v["estado"] == "activa" for v in versiones if v["nombre"] == nombre) == 1, nombre
     assert all(v["estado"] in rp.ESTADOS for v in versiones)
+
+
+# --- Gate 2: el prompt del agente también está versionado ---
+
+
+def test_historial_del_agente_con_sus_fechas_reales(registro):
+    agente = de(registro, PROMPT_AGENTE)
+    assert [v["fecha"] for v in agente] == ["2026-11-05", "2026-11-09", "2026-11-09", agente[3]["fecha"]]
+    assert [v["estado"] for v in agente] == ["reemplazada", "reemplazada", "activa", "propuesta"]
+    assert registro.activa(PROMPT_RAG)["nombre"] == PROMPT_RAG  # activar uno no toca el otro prompt
+
+
+def test_cada_version_del_agente_agrega_una_regla():
+    for anterior, nueva, agregada in [(rp.V1_AGENTE, rp.V2_AGENTE, "nunca escribas otro link"),
+                                      (rp.V2_AGENTE, rp.V3_AGENTE, "marcar_comentario_negativo"),
+                                      (rp.V3_AGENTE, rp.V4_AGENTE, "copia esa fuente")]:
+        assert agregada not in anterior and agregada in nueva
+
+
+def test_el_agente_usa_la_version_activa_del_registro():
+    import agente_con_herramientas as ag
+    assert ag.INSTRUCCIONES_BOT == rp.prompt_activo(PROMPT_AGENTE)["texto"]
+
+
+def test_activar_el_agente_no_cambia_el_rag(registro):
+    rag_antes = registro.activa(PROMPT_RAG)["huella"]
+    registro.activar(PROMPT_AGENTE, huella_prompt(rp.V4_AGENTE), "Cris")
+    assert registro.activa(PROMPT_AGENTE)["texto"] == rp.V4_AGENTE and registro.activa(PROMPT_RAG)["huella"] == rag_antes

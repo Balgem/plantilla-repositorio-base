@@ -21,6 +21,7 @@ from indexar_corpus import RAIZ
 
 ARCHIVO_REGISTRO = RAIZ / "prompts" / "registro_versiones.json"
 PROMPT_RAG = "sistema_rag"
+PROMPT_AGENTE = "sistema_agente"  # INSTRUCCIONES_BOT del agente con herramientas y memoria (Gate 2)
 MODELO_VALIDADO = "gemini-3.5-flash-lite"
 ESTADOS = ("propuesta", "activa", "rechazada", "reemplazada")
 
@@ -50,6 +51,27 @@ V3_NO_SE_PARA_EL_VIEWER = V2_ANTI_INYECCION.replace(
     "fragmentos, en vez de inventar.",
 )
 assert V3_NO_SE_PARA_EL_VIEWER != V2_ANTI_INYECCION
+
+
+# --- El historial real del prompt de sistema del AGENTE (Bloques 21 a 23 y Gate 2), sacado de los commits ---
+
+V1_AGENTE = (  # Bloque 21, commit 0893570
+    "Eres el bot de chat de una campaña publicitaria del teclado mecánico K7 en un stream de Twitch. "
+    "Responde en español, en una o dos frases. Para cualquier dato del producto usa consultar_campana: "
+    "nunca inventes precios, descuentos ni características, y no agregues frases promocionales que no "
+    "vengan de las herramientas (stock, unidades limitadas, ofertas por tiempo limitado, envío gratis). Si el viewer "
+    "quiere comprar, regístralo con registrar_interes_compra y dale el link. Si te preguntan algo que no tiene que "
+    "ver con la campaña ni con el stream, responde breve y amable, sin usar herramientas."
+)
+# Bloque 22 (aad42fb): el modelo inventó el link en 3 de 3 corridas
+V2_AGENTE = V1_AGENTE.replace("y dale el link.", "y dale el link que entrega consultar_campana (nunca escribas otro link).")
+# Bloque 23 (407dd93): la herramienta para marcar comentarios negativos
+V3_AGENTE = V2_AGENTE + (" Si alguien habla mal del producto o de la marca, márcalo con marcar_comentario_negativo y "
+                         "responde breve y neutral, sin discutir ni defender el producto.")
+# Gate 2 (68b85d8): copiar la fuente que trae consultar_campana (criterio 2). Entró al código SIN aprobación:
+# por eso se registra como propuesta y se decide con grafo_supervision.py, como cualquier cambio de prompt.
+V4_AGENTE = V3_AGENTE.replace(" Si te preguntan algo", " Si consultar_campana trae '(Fuente: ...)', copia esa fuente "
+                              "tal cual al final de tu respuesta. Si te preguntan algo")
 
 
 def huella_prompt(texto: str) -> str:
@@ -147,6 +169,14 @@ def cargar_historial(registro: RegistroDePrompts) -> None:
                        estado="activa", fecha="2026-11-18")  # commit 248073b
     registro.registrar(PROMPT_RAG, V3_NO_SE_PARA_EL_VIEWER, "Cris",
                        "al no saber, no nombrar 'el contexto' ante el viewer (corrida real del Bloque 31)")
+    for texto, nota, fecha in [
+        (V1_AGENTE, "versión inicial del agente con herramientas (Bloque 21)", "2026-11-05"),
+        (V2_AGENTE, "dar solo el link que entrega consultar_campana: el modelo inventaba links (Bloque 22)", "2026-11-09"),
+        (V3_AGENTE, "marcar comentarios negativos y responder neutral (Bloque 23)", "2026-11-09"),
+    ]:
+        registro.registrar(PROMPT_AGENTE, texto, "Cris", nota, estado="activa", fecha=fecha)
+    registro.registrar(PROMPT_AGENTE, V4_AGENTE, "Cris",
+                       "copiar la fuente de consultar_campana al final de la respuesta (Gate 2, criterio 2)")
 
 
 def titulo(texto):
@@ -166,13 +196,23 @@ if __name__ == "__main__":
     print("ultima registrada:", registro.ultima(PROMPT_RAG)["huella"], f"({registro.ultima(PROMPT_RAG)['estado']})")
     print("activa (la que usa el bot):", registro.activa(PROMPT_RAG)["huella"])
 
-    v1, v2, v3 = registro.versiones[:3]
+    v1, v2, v3 = [v for v in registro.versiones if v["nombre"] == PROMPT_RAG][:3]
     titulo("Diff v1 -> v2 (Bloque 26 -> Bloque 31)")
     print("\n".join(diff_prompts(v1["texto"], v2["texto"])))
     decision = (f"{v3['estado']} por {v3['decidido_por']} el {v3['fecha_decision']}" if v3.get("decidido_por")
                 else "lo que se pide aprobar")
     titulo(f"Diff v2 -> v3 ({decision})")
     print("\n".join(diff_prompts(v2["texto"], v3["texto"])))
-    siguiente = (f"Para decidir sobre la propuesta: python3 src/grafo_supervision.py --proponer {v3['huella']}"
-                 if v3["estado"] == "propuesta" else f"Versión activa: {registro.activa(PROMPT_RAG)['huella']}.")
-    print(f"\nRegistro guardado en {ARCHIVO_REGISTRO.relative_to(RAIZ)}. {siguiente}")
+    agente = [v for v in registro.versiones if v["nombre"] == PROMPT_AGENTE]
+    if len(agente) >= 2:
+        anterior, ultima = agente[-2], agente[-1]
+        titulo(f"Prompt del agente: diff {anterior['huella']} -> {ultima['huella']} ({ultima['estado']})")
+        print("\n".join(diff_prompts(anterior["texto"], ultima["texto"])))
+
+    print(f"\nRegistro guardado en {ARCHIVO_REGISTRO.relative_to(RAIZ)}.")
+    for nombre in (PROMPT_RAG, PROMPT_AGENTE):
+        activa = registro.activa(nombre)
+        print(f"  {nombre}: activa {activa['huella'] if activa else '(ninguna)'}")
+        for v in registro.versiones:
+            if v["nombre"] == nombre and v["estado"] == "propuesta":
+                print(f"    propuesta {v['huella']}: python3 main.py supervision --proponer {v['huella']}")

@@ -75,11 +75,13 @@ MIS_RIESGOS = [
                "(insulta, habla de otra marca o revela sus instrucciones)",
      "probabilidad": 3, "impacto": 4, "inherente": (4, 4),
      "evidencia": "El detector se esquiva con sinónimos o separando letras (probado en el Bloque 31)",
-     "mitigacion": "Detector de inyección sobre la pregunta, que corta antes del retriever y del modelo; roles "
-                   "separados; filtrar_salida sobre lo que el modelo responda (Bloque 31)",
-     "supervision": "Cada intento detectado queda en el log con su trace_id y se revisa post-stream "
-                    "(logging_rag.py --revisar, Bloque 32). Falta: marcar al viewer en el reporte de la marca (Gate 2)",
-     "estado_supervision": "parcial"},
+     "mitigacion": "Detector de inyección sobre la pregunta (RAG) y sobre el mensaje antes del agente (Gate 2), que "
+                   "corta antes del retriever y del modelo; roles separados; filtrar_salida y cita obligatoria sobre "
+                   "lo que el modelo responda (Bloque 31, Gate 2)",
+     "supervision": "Cada intento detectado se bloquea y queda marcado con la huella del viewer: en el agente aparece "
+                    "en la revisión humana del reporte antes del envío (reporte_marca.py, Gate 2) y en el RAG en "
+                    "logging_rag.py --revisar (Bloque 32)",
+     "estado_supervision": "existe"},
     {"riesgo": "Los nombres, correos o teléfonos de viewers quedan en texto plano en los logs o las trazas",
      "probabilidad": 1, "impacto": 3, "inherente": (4, 3),
      "evidencia": "Hasta el Gate 2, trazas.py guardaba nombre y mensaje, y el aviso del filtro de salida registraba la "
@@ -98,9 +100,10 @@ MIS_RIESGOS = [
      "estado_supervision": "existe"},
     {"riesgo": "Un cambio del prompt de sistema llega a producción sin registro ni revisión",
      "probabilidad": 2, "impacto": 4, "inherente": (3, 4),
-     "evidencia": "Hasta el Bloque 31 el prompt era un string suelto en el código",
-     "mitigacion": "Registro de versiones con huella; el bot lee el prompt activo del registro y deja su huella en "
-                   "cada consulta del log (Bloque 32)",
+     "evidencia": "Hasta el Bloque 31 el prompt era un string suelto en el código; en el Gate 2 el del agente "
+                  "cambió sin aprobación y se regularizó como propuesta",
+     "mitigacion": "Registro de versiones con huella para los DOS prompts (RAG y agente, con su historial desde el "
+                   "Bloque 21); el bot lee el prompt activo del registro y deja su huella en cada consulta (Bloque 32, Gate 2)",
      "supervision": "grafo_supervision.py: interrupt con el diff, aprobación con thread_id único y checkpointer "
                     "durable (Bloque 32)",
      "estado_supervision": "existe"},

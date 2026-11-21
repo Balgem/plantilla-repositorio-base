@@ -39,6 +39,7 @@ from agente_con_herramientas import (
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
 from enrutamiento import MODELO_SECUNDARIO
 import trazas
+from logging_rag import detectar_inyeccion
 from privacidad import huella
 
 logger = logging.getLogger(__name__)
@@ -119,10 +120,20 @@ def procesar_mensaje_con_memoria(agente: RunnableWithMessageHistory, entrada: st
     Sin nombre de usuario no hay sesión: el bot no responde (no puede saber a qué historial pertenece).
     Ante cualquier error, registra y no responde (Bloque 20). La salida pasa por los mismos filtros del Bloque 21.
     Cada turno, con o sin error, queda en la traza (Bloque 23).
+
+    Gate 2: un mensaje con un intento de inyección (el detector del Bloque 31) no llega al agente ni a la memoria
+    del viewer: el bot no responde y la traza lo marca, para que la persona que revisa el reporte post-stream lo vea.
     """
     usuario = usuario_de(entrada)
     if usuario is None:
         return {"output": SIN_RESPUESTA, "intermediate_steps": []}
+    patrones = detectar_inyeccion(re.sub(r"^\s*\[[^\]]+\]\s*", "", entrada))
+    if patrones:
+        logger.warning("Intento de inyección en el chat: no se le pasa al agente (viewer %s, patrones %s)",
+                       huella(usuario), patrones)
+        resultado = {"output": SIN_RESPUESTA, "intermediate_steps": []}
+        trazas.registrar_traza(usuario, entrada, resultado, inyeccion=patrones)
+        return resultado
     try:
         resultado = agente.invoke({"entrada": entrada}, {"configurable": {"session_id": usuario}})
         error = None  # 'output' ya viene limpio (limpiar_salida)

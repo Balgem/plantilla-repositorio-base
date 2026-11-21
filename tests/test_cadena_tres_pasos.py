@@ -57,3 +57,44 @@ def test_sin_mensaje_falla_antes_de_llamar_al_modelo():
     with pytest.raises(KeyError):
         construir_cadena(modelo).invoke({"texto": "clave equivocada"})
     assert modelo.call_count == 0
+
+
+# --- Gate 2: paso 1 con salida estructurada (la mejora que dejó la decisión del Bloque 30) ---
+
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel  # noqa: E402
+from langchain_core.runnables import RunnableLambda  # noqa: E402
+
+from cadena_tres_pasos import CATEGORIAS_CHAIN, Clasificacion, construir_clasificador  # noqa: E402
+
+
+class ModeloEstructurado(FakeMessagesListChatModel):
+    """Simula un modelo con salida estructurada: devuelve un Clasificacion, no texto."""
+    esquemas: list = []
+
+    def with_structured_output(self, esquema, **kwargs):
+        self.esquemas.append(esquema)
+        return RunnableLambda(lambda _: esquema(categoria="interes_compra"))
+
+
+def test_con_un_modelo_que_la_soporta_usa_salida_estructurada():
+    modelo = ModeloEstructurado(responses=[AIMessage(content="no se usa")])
+    assert construir_clasificador(modelo).invoke({"mensaje": "lo quiero!!"}) == "interes_compra"
+    assert modelo.esquemas == [Clasificacion]
+
+
+def test_gemini_usa_el_camino_estructurado():
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    modelo = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", google_api_key="clave-falsa")
+    pasos = construir_clasificador(modelo).steps  # se arma la chain, no se llama a la API
+    assert not any(type(p).__name__ == "StrOutputParser" for p in pasos)
+
+
+def test_sin_soporte_cae_al_camino_de_texto():
+    modelo = FakeMessagesListChatModel(responses=[AIMessage(content="  Spam \n")])  # no implementa bind_tools
+    assert construir_clasificador(modelo).invoke({"mensaje": "sigan mi canal"}) == "spam"
+
+
+def test_el_esquema_solo_acepta_las_categorias_de_la_chain():
+    assert set(Clasificacion.model_json_schema()["properties"]["categoria"]["enum"]) == set(CATEGORIAS_CHAIN)
+    with pytest.raises(ValueError):
+        Clasificacion(categoria="Pregunta_producto.")

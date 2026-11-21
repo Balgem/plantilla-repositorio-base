@@ -56,7 +56,11 @@ def datos_del_stream(registros: list[dict]) -> dict:
     herramientas = Counter()
     interesados: dict[str, int] = {}
     comentarios: list[dict] = []
+    intentos: list[dict] = []
     for registro in registros:
+        if registro.get("inyeccion"):  # Gate 2: el viewer queda marcado (por su huella) para la revisión humana
+            intentos.append({"viewer": registro.get("viewer", "?"), "patrones": registro["inyeccion"],
+                             "momento": registro.get("timestamp", "")})
         for accion in registro.get("acciones", []):
             nombre, argumentos = accion.get("herramienta"), accion.get("argumentos") or {}
             herramientas[nombre] += 1
@@ -75,6 +79,7 @@ def datos_del_stream(registros: list[dict]) -> dict:
         "interesados": len(interesados),
         "unidades": sum(interesados.values()),
         "comentarios_marcados": comentarios,
+        "intentos_inyeccion": intentos,
     }
 
 
@@ -103,6 +108,8 @@ def armar_reporte(datos: dict, comentarios_aprobados: list[dict]) -> str:
         f"- Mensajes atendidos por el bot: {datos['turnos']} (sin respuesta por error: {datos['con_error']})",
         f"- Consultas sobre el producto: {datos['herramientas'].get('consultar_campana', 0)}",
         f"- Viewers con interés de compra: {datos['interesados']} ({datos['unidades']} unidades en total)",
+        f"- Mensajes bloqueados por intentar manipular al bot: {len(datos.get('intentos_inyeccion', []))} "
+        f"(de {len({i['viewer'] for i in datos.get('intentos_inyeccion', [])})} viewer/s; no se respondieron)",
         "",
         "## Comentarios negativos (revisados por una persona)",
     ]
@@ -161,6 +168,9 @@ def construir_grafo(checkpointer, archivo_trazas=None, archivo_reporte=None):
             "motivo": MOTIVO,
             "resumen": armar_reporte({**estado["datos"], "comentarios_marcados": estado["comentarios"]}, []),
             "comentarios": estado["comentarios"],
+            # Para quien revisa, no para la marca: la huella del viewer permite identificarlo y moderarlo
+            # (privacidad.huella("nombre") da la misma huella), sin que el nombre quede escrito en ningún archivo.
+            "intentos_inyeccion": estado["datos"].get("intentos_inyeccion", []),
         })
         if not isinstance(decision, dict):
             decision = {"aprobado": decision}
@@ -235,6 +245,10 @@ def resolver(app, thread_id: str, aprobar: bool, comentarios: list[str], por: st
 def mostrar_pendiente(thread_id: str, valor: dict) -> None:
     print(f"\n{thread_id} · {valor['motivo']}\n")
     print(valor["resumen"])
+    if valor.get("intentos_inyeccion"):
+        print("Viewers que intentaron manipular al bot (solo para tu revisión; a la marca le llega el número):")
+        for i in valor["intentos_inyeccion"]:
+            print(f"  viewer {i['viewer']} · {i['momento'][:19]} · {', '.join(i['patrones'])}")
     print("Comentarios marcados por el bot (redactados; elige cuáles van):")
     for c in valor["comentarios"] or [{"id": "-", "mensaje": "ninguno", "motivo": ""}]:
         print(f"  {c['id']}: «{c['mensaje']}» ({c['motivo']})")

@@ -80,7 +80,9 @@ Todo eso deja eventos JSON en `logs/rag.jsonl` con el mismo `trace_id`. La pregu
 Las otras piezas del bot:
 - **Agente con herramientas y memoria por viewer** (`src/agente_con_herramientas.py`, `src/agente_con_memoria.py`): registra interesados en comprar y marca comentarios negativos. Su herramienta `consultar_campana` usa el mismo RAG, y si el modelo no copia la fuente en su respuesta, el código se la agrega.
 - **Reporte a la marca** (`src/reporte_marca.py`): resume el stream desde las trazas y **se detiene** hasta que una persona decide.
-- **Registro de versiones del prompt** (`prompts/registro_versiones.json`): el bot usa la versión aprobada, y cada consulta deja en el log la huella del prompt que la respondió.
+- **Registro de versiones de los dos prompts de sistema** (`prompts/registro_versiones.json`): el del RAG y el del agente, con su historial real desde el Bloque 21. El bot usa la versión aprobada, y cada consulta deja en el log la huella del prompt que la respondió.
+- **Viewers que intentan inyectar**: su mensaje no llega al agente, la traza lo marca con la huella del viewer, y la persona que aprueba el reporte los ve antes de enviarlo (a la marca solo le llega el número).
+- **Clasificación con salida estructurada** (`with_structured_output` + el esquema `Clasificacion`): el paso 1 de la chain solo puede devolver una de las 4 categorías. Es la mejora que dejó la decisión del Bloque 30.
 
 ## 🚦 Los cuatro criterios no compensables
 
@@ -153,14 +155,13 @@ Todo se corre desde `main.py` (`python3 main.py` muestra la lista completa; los 
 | No personalizar el modelo | El problema que justificaría PEFT (formato inconsistente) no apareció: 0/20 fallas | `docs/decision_personalizacion.md` |
 | Prompt v3 (`959478c666ac`) | La v2 hacía decir al bot "el contexto no menciona…", y el viewer no sabe qué es "el contexto". Aprobada con el grafo de supervisión | `prompts/registro_versiones.json` |
 | Fuente obligatoria por frase | Sin cita, una respuesta no se distingue de una alucinación | `armar_publicacion` en `src/logging_rag.py` |
+| Prompt del agente versionado | Su cambio del Gate 2 entró sin aprobación: se registró como propuesta y se decide con el grafo, como cualquier otro | `python3 main.py prompts` |
 
 ## ⚠️ Lo que todavía no hace
 
 - No está conectado al chat real de Twitch ni a un CRM: los viewers y el CRM son simulados.
 - El detector de inyección se puede esquivar con sinónimos o separando letras (lo probé en el Bloque 31). Por eso no es la única capa: el filtro de salida y la cita obligatoria actúan aunque el detector falle.
 - La generación tarda entre 2 y 9 segundos según la corrida: en un chat rápido, algunas respuestas pueden llegar tarde. Está medido, todavía no optimizado.
-- Un viewer que intenta inyectar queda en el log para revisión, pero todavía no se marca en el reporte a la marca.
-- La decisión del Bloque 30 sugería pasar el clasificador a salida estructurada (`with_structured_output`). Hoy no hace falta (0/20 fallas), queda como mejora.
 
 ## 🗂️ Estructura
 

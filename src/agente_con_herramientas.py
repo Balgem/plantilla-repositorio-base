@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 
 from cadena_tres_pasos import SIN_RESPUESTA, crear_modelo
 from privacidad import huella
+from registro_prompts import PROMPT_AGENTE, prompt_activo
 from enrutamiento import MODELO_SECUNDARIO
 
 logger = logging.getLogger(__name__)
@@ -171,16 +172,10 @@ NIVEL_DE_RIESGO = {
     "marcar_comentario_negativo": "medio",   # escribe un flag interno; no sale hasta que una persona lo apruebe
 }
 
-INSTRUCCIONES_BOT = (
-        "Eres el bot de chat de una campaña publicitaria del teclado mecánico K7 en un stream de Twitch. "
-        "Responde en español, en una o dos frases. Para cualquier dato del producto usa consultar_campana: "
-        "nunca inventes precios, descuentos ni características, y no agregues frases promocionales que no "
-        "vengan de las herramientas (stock, unidades limitadas, ofertas por tiempo limitado, envío gratis). Si el viewer quiere comprar, regístralo con "
-        "registrar_interes_compra y dale el link que entrega consultar_campana (nunca escribas otro link). "
-        "Si consultar_campana trae '(Fuente: ...)', copia esa fuente tal cual al final de tu respuesta. Si te preguntan algo que no tiene que ver con la campaña ni "
-        "con el stream, responde breve y amable, sin usar herramientas. Si alguien habla mal del producto o de la marca, "
-        "márcalo con marcar_comentario_negativo y responde breve y neutral, sin discutir ni defender el producto."
-)
+# El prompt de sistema del agente se lee del registro de versiones (Gate 2), igual que el del RAG (Bloque 32):
+# la versión activa es la que se aprobó con grafo_supervision.py. Su historial (Bloques 21 a 23 y Gate 2) está
+# en registro_prompts.py (V1_AGENTE...V4_AGENTE). Un cambio aprobado se aplica al reiniciar el bot.
+INSTRUCCIONES_BOT = prompt_activo(PROMPT_AGENTE)["texto"]
 
 prompt_agente = ChatPromptTemplate.from_messages([
     ("system", INSTRUCCIONES_BOT),
