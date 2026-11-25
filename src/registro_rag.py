@@ -1,17 +1,10 @@
-"""Latencia y costo real del flujo RAG, por etapa (Bloque 28).
+"""Latencia y costo del flujo RAG por etapa: embedding, búsqueda y generación (Bloque 28).
 
-Uso, desde la raíz del repositorio y con el entorno activo (el índice ya tiene que existir):
-    python3 src/registro_rag.py            # 4 preguntas con k=3 + 1 con k=6, y las guarda
-    python3 src/registro_rag.py --leer     # resumen de todo lo registrado
+Cada corrida se agrega a docs/registros_latencia_costo.jsonl.
 
-- Mide las TRES etapas por separado: embed de la pregunta (red), búsqueda en Chroma (local) y generación (red).
-  El script de la lección juntaba embed y búsqueda, y además medía dentro la conexión al índice.
-- La conexión al índice y la creación del modelo se hacen UNA vez, fuera de las mediciones: no son parte
-  de lo que tarda una consulta del bot.
-- Tokens reales de usage_metadata (incluye los de razonamiento, que Gemini cobra como salida) y costo con
-  los precios de src/cliente.py.
-- Cada corrida se agrega a docs/registros_latencia_costo.jsonl (JSON Lines). Solo se guardan consultas reales
-  que terminaron bien; las pruebas escriben en una carpeta temporal.
+Uso:
+    python3 src/registro_rag.py
+    python3 src/registro_rag.py --leer
 """
 import argparse
 import json

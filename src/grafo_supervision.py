@@ -1,25 +1,14 @@
-"""Punto de supervisión humana para desplegar una versión nueva del prompt (Bloque 32, paso 2).
+"""Aprobación humana para activar una versión nueva de un prompt (Bloque 32).
 
-Uso, desde la raíz del repositorio y con el entorno activo (no llama a la API):
-    python3 src/grafo_supervision.py                              # demo: pruebas 2, 3 y 4 sobre una COPIA del registro
-    python3 src/grafo_supervision.py --proponer 959478c666ac      # pide la aprobación de verdad y se detiene
-    python3 src/grafo_supervision.py --pendientes                 # qué está esperando una decisión
-    python3 src/grafo_supervision.py --aprobar <thread_id> --huella 959478c666ac
-    python3 src/grafo_supervision.py --rechazar <thread_id> --huella 959478c666ac
+El grafo se detiene con interrupt() mostrando el diff, y solo activa la versión si alguien aprueba.
+Las aprobaciones pendientes se guardan en checkpoints/supervision.db.
 
-Lo que cambia respecto del grafo de la lección:
-- "aplicar" ACTIVA o RECHAZA de verdad la versión en prompts/registro_versiones.json, y logging_rag.py lee de
-  ahí el prompt activo: aprobar es desplegar.
-- El interrupt muestra el DIFF contra la versión activa (lección 1: se aprueba mirando el cambio, no releyendo
-  el prompt entero).
-- Solo True aprueba: resume="no", "false" o 1 se tratan como rechazo (con resume="no" el grafo de la lección
-  activaba la versión).
-- El nodo "supervisar" solo pregunta: al reanudar, LangGraph lo vuelve a ejecutar desde su primera línea, así
-  que cualquier efecto ahí se repetiría. Los efectos van en "aplicar".
-- Para la aprobación real usa SqliteSaver (checkpoints/supervision.db): la propuesta queda pendiente aunque se
-  cierre la terminal, y otra persona (u otro proceso, horas después) la puede resolver.
-- resolver() comprueba antes de reanudar que el hilo tenga algo pendiente y que la huella sea la que la persona
-  revisó (el caso "se aprobó otra versión" de la tabla de errores de la lección).
+Uso:
+    python3 src/grafo_supervision.py                    demo sobre una copia del registro
+    python3 src/grafo_supervision.py --proponer HUELLA
+    python3 src/grafo_supervision.py --pendientes
+    python3 src/grafo_supervision.py --aprobar THREAD_ID --huella HUELLA
+    python3 src/grafo_supervision.py --rechazar THREAD_ID --huella HUELLA
 """
 import argparse
 import getpass
@@ -114,11 +103,7 @@ def config_de(thread_id: str) -> dict:
 
 
 def proponer_despliegue(app, huella: str, nombre: str | None = None) -> tuple[str, dict]:
-    """Corre hasta el interrupt con un thread_id NUEVO. Devuelve (thread_id, lo que la persona tiene que revisar).
-
-    Si esa versión ya espera una decisión en otro hilo, no abre un segundo: dos aprobaciones pendientes para lo
-    mismo terminan en que la segunda falla (la versión ya no está "propuesta").
-    """
+    """Corre hasta el interrupt con un thread_id NUEVO. Devuelve (thread_id, lo que la persona tiene que revisar)."""
     for otro, valor in pendientes(app):
         if valor["huella_propuesta"] == huella:
             raise ValueError(f"{huella} ya espera una decisión en {otro}")

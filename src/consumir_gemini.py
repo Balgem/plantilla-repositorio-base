@@ -43,11 +43,7 @@ def armar_peticion(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
 ) -> tuple[str, dict, dict]:
-    """Valida la entrada y arma la URL, los headers y el body de la petición.
-
-    Si se entrega response_schema, se le exige al modelo una respuesta JSON con esa forma.
-    Lanza ValueError si la pregunta o la instrucción están vacías o si falta la clave (GEMINI_API_KEY o API_KEY) en el .env.
-    """
+    """Valida la entrada y arma la URL, los headers y el body de la petición."""
     if not isinstance(pregunta, str) or not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
     if system_instruction is not None and (not isinstance(system_instruction, str) or not system_instruction.strip()):
@@ -70,12 +66,7 @@ def armar_peticion(
 
 
 def enviar_peticion(url: str, headers: dict, body: dict) -> dict:
-    """Envía la petición POST (timeout de 30 s) y clasifica los errores según si conviene reintentar.
-
-    - ValueError: credencial inválida o sin permiso (400 por llave inválida, 401, 403). No se reintenta.
-    - TimeoutError: límite de uso (429), falla del proveedor (5xx) o sin conexión. Se reintenta.
-    - RuntimeError: cualquier otro error de la petición o una respuesta que no es JSON.
-    """
+    """Envía la petición POST (timeout de 30 s) y clasifica los errores según si conviene reintentar."""
     try:
         respuesta = requests.post(url, headers=headers, json=body, timeout=30)
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
@@ -100,14 +91,7 @@ def con_reintentos(
     espera_base: float = ESPERA_BASE,
     espera_maxima: float = ESPERA_MAXIMA,
 ) -> tuple[Any, int]:
-    """Ejecuta funcion() y la reintenta solo si lanza TimeoutError, con backoff exponencial y jitter.
-
-    La espera se duplica en cada intento (2, 4, 8 s…), nunca supera espera_maxima y se le suma
-    hasta un 10 % al azar, para que varios clientes no reintenten todos al mismo tiempo.
-    Un ValueError (credencial inválida) u otro error se propaga de inmediato, sin reintentar.
-    Devuelve (resultado, intentos). Si se agotan los intentos, relanza el TimeoutError
-    con el atributo `intentos`.
-    """
+    """Ejecuta funcion() y la reintenta solo si lanza TimeoutError, con backoff exponencial y jitter."""
     for intento in range(1, intentos + 1):
         try:
             return funcion(), intento
@@ -123,10 +107,7 @@ def con_reintentos(
 
 
 def extraer_texto(respuesta_json: dict) -> str:
-    """Devuelve el texto generado (candidates[0].content.parts[0].text).
-
-    Lanza RuntimeError si la respuesta no trae el texto en ese lugar.
-    """
+    """Devuelve el texto generado (candidates[0].content.parts[0].text)."""
     try:
         return respuesta_json["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError) as error:
@@ -134,11 +115,7 @@ def extraer_texto(respuesta_json: dict) -> str:
 
 
 def parsear_respuesta_json(texto: str, claves_esperadas: list[str] | None = None) -> dict:
-    """Convierte el texto del modelo en un diccionario y verifica que traiga las claves esperadas.
-
-    Quita los bloques ```json si el modelo los agrega. Lanza ValueError si el texto no es
-    un objeto JSON válido o si le faltan claves.
-    """
+    """Convierte el texto del modelo en un diccionario y verifica que traiga las claves esperadas."""
     texto_limpio = texto.strip()
     texto_limpio = re.sub(r"^```(?:json)?\s*", "", texto_limpio)
     texto_limpio = re.sub(r"\s*```$", "", texto_limpio)
@@ -155,11 +132,7 @@ def parsear_respuesta_json(texto: str, claves_esperadas: list[str] | None = None
 
 
 def calcular_costo(respuesta_json: dict, precio_entrada: float, precio_salida: float) -> float:
-    """Calcula el costo en USD de una petición a partir de usageMetadata.
-
-    Los precios van por token. La salida incluye los tokens de razonamiento (thoughtsTokenCount),
-    que se cobran como salida. Lanza RuntimeError si falta el conteo de tokens.
-    """
+    """Calcula el costo en USD de una petición a partir de usageMetadata."""
     try:
         uso = respuesta_json["usageMetadata"]
         tokens_entrada = uso["promptTokenCount"]

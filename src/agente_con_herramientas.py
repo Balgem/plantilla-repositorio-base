@@ -1,22 +1,9 @@
-"""Agente del bot con sus herramientas propias (Bloques 21 a 23).
+"""Agente del bot con herramientas propias (Bloques 21 a 23).
 
-A diferencia de la chain con enrutamiento (Bloque 19), aquí el modelo decide en cada consulta
-qué herramienta usar, en qué orden, o si no necesita ninguna:
+Herramientas: consultar_campana (usa el RAG si está configurado), consultar_viewers,
+registrar_interes_compra y marcar_comentario_negativo. Viewers y CRM son simulados.
 
-- consultar_campana: datos de la campaña. Desde el Gate 2 responde con el RAG (logging_rag.responder) y
-  devuelve la respuesta con su fuente; si el RAG no está configurado, usa los datos fijos, también con su fuente.
-- consultar_viewers: cuántas personas están viendo el stream.
-- registrar_interes_compra: guarda en el CRM a un viewer que quiere comprar.
-- marcar_comentario_negativo (Bloque 23): deja con flag un comentario negativo sobre el producto o la marca.
-  No lo manda a nadie: queda pendiente para la revisión humana del reporte post-stream (src/reporte_marca.py).
-
-En el bot completo, el filtro de spam sigue siendo la chain del Bloque 19 (barata y predecible);
-el agente entra solo con los mensajes que merecen respuesta.
-
-Los datos de viewers y el CRM son simulados en esta etapa: en el Gate 2 se conectan a la API de
-Twitch y al CRM real.
-
-Uso, desde la raíz del repositorio y con el entorno activo:
+Uso:
     python3 src/agente_con_herramientas.py
 """
 import logging
@@ -45,7 +32,7 @@ DATOS_CAMPANA = {
     "descuento": "No hay descuentos ni códigos de descuento.",
     "mecánico": "Sí, el K7 es un teclado mecánico.",
 }
-# De qué documento del corpus sale cada dato fijo (criterio 2 del Gate 2: toda respuesta cita su fuente).
+# Documento del corpus del que sale cada dato fijo.
 FUENTE_DATO = {"precio": "02_precio_y_compra.md", "link": "02_precio_y_compra.md",
                "descuento": "02_precio_y_compra.md", "mecánico": "01_ficha_tecnica.md"}
 
@@ -72,7 +59,7 @@ def configurar_rag(responder) -> None:
     global _responder_rag
     _responder_rag = responder
 
-# Simulación: en el Gate 2 esto se reemplaza por la API de Twitch y el CRM real.
+# Simulados: no hay conexión con la API de Twitch ni con un CRM real.
 CANAL = "canal_demo"  # el canal lo define la configuración del bot, no el viewer ni el modelo
 VIEWERS_SIMULADOS = {"canal_demo": 1200}
 REGISTRO_CRM: list[dict] = []
@@ -80,9 +67,9 @@ REGISTRO_CRM: list[dict] = []
 
 @tool
 def consultar_campana(dato: str) -> str:
-    """Devuelve un dato oficial de la campaña del teclado K7: precio, link de compra, descuentos o si es mecánico.
-    Usar siempre que el viewer pregunte por el producto, cuánto cuesta, dónde comprarlo o si hay descuentos,
-    antes de responder, para no inventar datos."""
+    """Devuelve un dato oficial de la campaña del teclado K7: precio, link de compra, descuentos o si es mecánico. Usar
+    siempre que el viewer pregunte por el producto, cuánto cuesta, dónde comprarlo o si hay descuentos, antes de
+    responder, para no inventar datos."""
     if _responder_rag is not None:
         resultado = _responder_rag(dato)
         if resultado["fuentes"]:
@@ -119,9 +106,9 @@ class ArgumentosInteresCompra(BaseModel):
 
 @tool("registrar_interes_compra", args_schema=ArgumentosInteresCompra)
 def registrar_interes_compra(usuario: str, mensaje: str, cantidad: int = 1) -> str:
-    """Registra en el CRM a un viewer que muestra intención clara de comprar el producto
-    (por ejemplo, 'lo quiero', 'cómo lo compro', 'me lo compro', 'compro 2'). No usar para preguntas generales,
-    saludos ni spam. Si el viewer ya estaba registrado, actualiza la cantidad en vez de duplicarlo."""
+    """Registra en el CRM a un viewer que muestra intención clara de comprar el producto (por ejemplo, 'lo quiero', 'cómo
+    lo compro', 'me lo compro', 'compro 2'). No usar para preguntas generales, saludos ni spam. Si el viewer ya estaba
+    registrado, actualiza la cantidad en vez de duplicarlo."""
     try:
         for registro in REGISTRO_CRM:
             if registro["usuario"] == usuario:
@@ -149,9 +136,9 @@ COMENTARIOS_MARCADOS: list[dict] = []  # en memoria del proceso; el reporte post
 
 @tool("marcar_comentario_negativo", args_schema=ArgumentosComentarioNegativo)
 def marcar_comentario_negativo(usuario: str, mensaje: str, motivo: str) -> str:
-    """Deja con flag un comentario negativo sobre el teclado K7 o la marca (crítica, queja, burla, una falla).
-    Usar solo cuando el mensaje habla mal del producto o de la marca, no por cualquier mensaje con tono fuerte.
-    No envía nada a nadie: el comentario queda pendiente de que una persona decida si va al reporte de la marca."""
+    """Deja con flag un comentario negativo sobre el teclado K7 o la marca (crítica, queja, burla, una falla). Usar solo
+    cuando el mensaje habla mal del producto o de la marca, no por cualquier mensaje con tono fuerte. No envía nada a
+    nadie: el comentario queda pendiente de que una persona decida si va al reporte de la marca."""
     for comentario in COMENTARIOS_MARCADOS:
         if comentario["usuario"] == usuario and comentario["mensaje"] == mensaje:
             return "Ese comentario ya estaba marcado."
@@ -162,7 +149,7 @@ def marcar_comentario_negativo(usuario: str, mensaje: str, motivo: str) -> str:
 
 HERRAMIENTAS = [consultar_campana, consultar_viewers, registrar_interes_compra, marcar_comentario_negativo]
 
-# Clasificación de riesgo del agente en vivo (Bloque 23), la misma de docs/limites_autonomia_agente.md.
+# Riesgo de cada herramienta (ver docs/limites_autonomia_agente.md).
 # Ninguna es de riesgo alto: lo que sale hacia la marca pasa por src/reporte_marca.py, con aprobación humana.
 # tests/test_supervision_y_trazas.py comprueba que toda herramienta "alto" llame a esperar_aprobacion.
 NIVEL_DE_RIESGO = {
@@ -172,9 +159,7 @@ NIVEL_DE_RIESGO = {
     "marcar_comentario_negativo": "medio",   # escribe un flag interno; no sale hasta que una persona lo apruebe
 }
 
-# El prompt de sistema del agente se lee del registro de versiones (Gate 2), igual que el del RAG (Bloque 32):
-# la versión activa es la que se aprobó con grafo_supervision.py. Su historial (Bloques 21 a 23 y Gate 2) está
-# en registro_prompts.py (V1_AGENTE...V4_AGENTE). Un cambio aprobado se aplica al reiniciar el bot.
+# El prompt del agente se lee del registro de versiones; los cambios aprobados se aplican al reiniciar.
 INSTRUCCIONES_BOT = prompt_activo(PROMPT_AGENTE)["texto"]
 
 prompt_agente = ChatPromptTemplate.from_messages([
@@ -192,13 +177,7 @@ class AvisarFallosDelModelo(BaseCallbackHandler):
 
 
 def construir_agente(modelo, verbose: bool = False, modelo_secundario=None, prompt=None) -> AgentExecutor:
-    """Arma el agente. Recibe el modelo como parámetro para poder usar un modelo falso en las pruebas.
-
-    - modelo_secundario: si una llamada al modelo principal falla (503, timeout), esa misma llamada se repite
-      con el de respaldo, sin volver a ejecutar las herramientas que ya corrieron (no registra dos veces en el CRM).
-    - max_iterations=5: un mensaje del chat no debería necesitar más de 2 o 3 herramientas; si el agente
-      se queda dando vueltas, se corta antes que el valor por defecto (15) para no gastar llamadas.
-    """
+    """Arma el agente. Recibe el modelo como parámetro para poder usar un modelo falso en las pruebas."""
     if modelo_secundario is not None:
         # El aviso va en una copia del modelo principal: cada llamada que falle queda registrada
         # aunque la cubra el respaldo (manejar un error no es ocultarlo).
@@ -215,11 +194,7 @@ def construir_agente(modelo, verbose: bool = False, modelo_secundario=None, prom
 
 
 def texto_de_salida(salida) -> str:
-    """Deja la respuesta como texto plano para el chat.
-
-    Gemini 3.x a veces devuelve una lista de bloques ([{'type': 'text', 'text': ..., 'extras': {...}}])
-    en vez de un string; se juntan solo los bloques de texto.
-    """
+    """Deja la respuesta como texto plano para el chat."""
     if isinstance(salida, str):
         return salida
     if isinstance(salida, list):
@@ -241,16 +216,11 @@ PROMESAS_PROHIBIDAS = re.compile(
 
 
 def quitar_promesas_inventadas(texto: str) -> str:
-    """Quita de la respuesta las frases con promesas que la campaña no hace (chequeo determinista).
-
-    Trabaja por frase: si una frase menciona stock, ofertas, envío gratis u otra promesa prohibida,
-    se elimina completa y queda registrado un WARNING. El resto de la respuesta se publica igual.
-    """
+    """Quita de la respuesta las frases con promesas que la campaña no hace (chequeo determinista)."""
     frases = re.split(r"(?<=[.!?])\s+", texto.strip())
     permitidas = [f for f in frases if not PROMESAS_PROHIBIDAS.search(f)]
     if len(permitidas) < len(frases):
-        # Solo la palabra prohibida que calzó y cuántas frases: nunca la frase completa, que puede traer un
-        # correo o un nombre que el modelo repitió del mensaje del viewer (criterio 3 del Gate 2).
+        # Se registra la palabra que calzó, no la frase (podría traer datos del viewer).
         claves = sorted({m.group(0).lower() for f in frases for m in PROMESAS_PROHIBIDAS.finditer(f)})
         logger.warning("Se quitaron %d frase(s) con promesas que la campaña no hace: %s",
                        len(frases) - len(permitidas), claves)
@@ -261,11 +231,7 @@ URL = re.compile(r"https?://[^\s)\]]+")
 
 
 def corregir_links(texto: str) -> str:
-    """Reemplaza cualquier link que no sea el oficial por el oficial (chequeo determinista).
-
-    En la prueba con memoria el modelo escribió un link inventado (teclado-k7-campana.com) en vez del real:
-    un viewer que lo abre podría terminar en un sitio que no es de la marca.
-    """
+    """Reemplaza cualquier link que no sea el oficial por el oficial (chequeo determinista)."""
     def reemplazar(coincidencia: re.Match) -> str:
         link = coincidencia.group(0).rstrip(".,;:!?")
         sobrante = coincidencia.group(0)[len(link):]
@@ -283,10 +249,7 @@ def filtrar_salida(salida) -> str:
 
 
 def asegurar_fuente(texto: str, pasos) -> str:
-    """Si el agente usó consultar_campana y su respuesta final no copió la fuente, se la agrega (criterio 2).
-
-    No se confía en que el modelo la copie: es la misma idea de corregir_links, un chequeo determinista.
-    """
+    """Si el agente usó consultar_campana y no copió la fuente en su respuesta, se la agrega."""
     if texto == SIN_RESPUESTA or fuentes_de(texto):
         return texto
     fuentes = []
@@ -297,10 +260,7 @@ def asegurar_fuente(texto: str, pasos) -> str:
 
 
 def procesar_mensaje_agente(ejecutor: AgentExecutor, entrada: str) -> dict:
-    """Invoca al agente sin que una falla tumbe el programa (Bloque 20) y devuelve la respuesta como texto.
-
-    Si el agente falla aun con el respaldo, registra el error y el bot no responde.
-    """
+    """Invoca al agente sin que una falla tumbe el programa (Bloque 20) y devuelve la respuesta como texto."""
     try:
         resultado = ejecutor.invoke({"entrada": entrada})
         salida = asegurar_fuente(filtrar_salida(resultado["output"]), resultado.get("intermediate_steps"))

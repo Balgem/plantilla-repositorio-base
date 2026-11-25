@@ -1,9 +1,7 @@
-"""Comprueba que el entorno está listo para la corrida final del Gate 2. Nunca imprime la clave.
+"""Revisa Python, librerías, clave, .gitignore e índice antes de correr el servicio. No imprime la clave.
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 verificar_entorno.py          (o python3 main.py verificar)
-
-Termina con código 1 y una línea "Pendiente: ..." si falta algo; con 0 si está todo.
+Uso:
+    python3 verificar_entorno.py
 """
 import subprocess
 import sys
@@ -47,7 +45,12 @@ def main() -> int:
     except ImportError:
         pass  # ya quedó anotado arriba qué paquete falta
 
-    ignorado = subprocess.run(["git", "check-ignore", "-q", ".env"], cwd=RAIZ).returncode == 0
+    resultado = subprocess.run(["git", "check-ignore", "-q", ".env"], cwd=RAIZ, capture_output=True)
+    if resultado.returncode in (0, 1):  # 0: ignorado, 1: no ignorado
+        ignorado = resultado.returncode == 0
+    else:  # no es un repositorio git: se revisa el .gitignore directamente
+        gitignore = RAIZ / ".gitignore"
+        ignorado = gitignore.exists() and ".env" in gitignore.read_text(encoding="utf-8").split()
     print(f".env ignorado por git: {'sí' if ignorado else 'NO'}")
     if not ignorado:
         problemas.append('agregar ".env" a .gitignore antes de entregar')

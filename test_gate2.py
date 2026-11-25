@@ -1,17 +1,9 @@
-"""Los cuatro criterios no compensables del Gate 2, con un solo comando:
-    python3 -m pytest test_gate2.py -v          (o python3 main.py gate2)
+"""Pruebas de los cuatro criterios no compensables del Gate 2.
 
-Por defecto corre el servicio REAL del proyecto (corpus, chunking, índice Chroma, filtros, prompt versionado,
-logs, grafo de supervisión) con embeddings y modelo simulados, así que no necesita clave ni gasta.
-Con GATE2_REAL=1 usa el índice de vectorstore/ y Gemini (necesita la clave y gasta unas pocas consultas).
+Corren el servicio real con embeddings y modelo simulados. Con GATE2_REAL=1 usan el índice y Gemini.
 
-Diferencias con la plantilla de la lección, a propósito:
-- test_2: la fuente sale de la metadata de lo recuperado. El modelo simulado escribe solo "[1]", nunca el nombre
-  del archivo: si la prueba pasa, la cita la puso el código del servicio (en la lección, el modelo falso ya
-  traía "manual.pdf" en su texto y la prueba pasaba aunque no se recuperara nada).
-- test_3: además de caplog, lee el ARCHIVO de log real: los loggers del servicio no propagan (propagate=False)
-  y caplog solo no los vería (el falso positivo que advierte la lección).
-- test_4: el punto de supervisión es el envío del reporte a la marca, la acción de mayor riesgo del sistema.
+Uso:
+    python3 -m pytest test_gate2.py -v
 """
 import json
 import logging

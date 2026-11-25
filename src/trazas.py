@@ -1,15 +1,9 @@
-"""Traza de decisión del agente (Bloque 23): guardarla y revisarla después.
+"""Trazas del agente: una línea JSON por turno en trazas_agente.jsonl (Bloque 23).
 
-Cada turno del bot en vivo queda como una línea JSON en trazas_agente.jsonl: qué herramientas usó el agente
-(con argumentos y observación), qué respondió el modelo y qué se publicó después de los filtros. El reporte
-post-stream (src/reporte_marca.py) se arma desde este archivo.
+El viewer queda como huella y su mensaje como largo + huella. Solo se guarda el texto de los
+comentarios marcados como negativos, redactado, porque alguien tiene que revisarlos.
 
-Gate 2 (criterio 3, sin PII ni contenido crudo en los logs): el viewer queda como huella HMAC y su mensaje
-como largo + huella + tipos de PII que traía (src/privacidad.py). El único texto de un viewer que se guarda
-es el comentario que el agente marcó como negativo, REDACTADO (sin correos, teléfonos, RUT ni links), porque
-una persona tiene que leerlo antes de decidir si va al reporte de la marca. El archivo sigue en .gitignore.
-
-Revisión automática (primera pasada; la decisión final es de una persona):
+Uso:
     python3 src/trazas.py
 """
 import json
@@ -27,13 +21,7 @@ ARCHIVO_TRAZAS = Path("trazas_agente.jsonl")
 
 def registrar_traza(session_id: str, entrada: str, resultado: dict, respuesta_modelo=None,
                     error: str | None = None, archivo=None, inyeccion: list[str] | None = None) -> None:
-    """Agrega una interacción del agente a trazas_agente.jsonl (una línea JSON por turno).
-
-    - respuesta_modelo: lo que escribió el modelo ANTES de filtrar_salida. Si es distinta de la publicada,
-      un filtro actuó (link inventado o promesa prohibida) y esa traza va directo a revisión.
-    - Sin "intermediate_steps" en el resultado, acciones queda vacía en vez de fallar.
-    - Si no se puede escribir el archivo, se registra el error y el bot sigue: la traza no debe tumbar el chat.
-    """
+    """Agrega una interacción del agente a trazas_agente.jsonl (una línea JSON por turno)."""
     acciones = [
         {"herramienta": accion.tool, "argumentos": sin_pii(accion.tool_input), "observacion": redactar(str(observacion))}
         for accion, observacion in resultado.get("intermediate_steps", [])
@@ -96,15 +84,7 @@ def leer_trazas(archivo=None) -> list[dict]:
 
 
 def revisar_trazas(registros: list[dict]) -> dict[str, list[dict]]:
-    """Marca candidatas a revisión con los patrones del Bloque 23. No decide si algo está mal.
-
-    - repeticiones: la misma herramienta dos veces SEGUIDAS en un turno (el agente no avanza).
-    - riesgo_alto: una herramienta de riesgo alto en el agente en vivo. Hoy no hay ninguna, así que
-      cualquier aparición indica que alguien agregó una sin pasar por la clasificación.
-    - filtro_actuo: la respuesta del modelo no coincide con lo publicado (inventó un link o una promesa).
-    - comentarios_marcados: turnos con un flag de comentario negativo (se revisan todos antes del reporte).
-    - errores: turnos donde el agente falló y el bot no respondió.
-    """
+    """Marca candidatas a revisión con los patrones del Bloque 23. No decide si algo está mal."""
     hallazgos = {"repeticiones": [], "riesgo_alto": [], "filtro_actuo": [], "comentarios_marcados": [],
                  "errores": [], "intentos_inyeccion": []}
     for registro in registros:

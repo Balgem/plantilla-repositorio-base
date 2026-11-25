@@ -1,21 +1,10 @@
-"""Dataset para personalizar con PEFT el clasificador de mensajes del chat (Bloque 29).
+"""Dataset para un posible ajuste con PEFT del clasificador del chat (Bloque 29).
 
-Uso, desde la raíz del repositorio y con el entorno activo (no llama a la API):
+Cada ejemplo es mensaje -> {"categoria", "responder"}, con 5 categorías balanceadas y ejemplos de
+prueba aparte. validar_dataset revisa formato, claves, categorías y contradicciones.
+
+Uso:
     python3 src/dataset_tuning.py
-
-Por qué es un caso de PEFT y no de RAG: al modelo no le falta información (sabe qué es spam o una queja);
-lo que falta es comportamiento consistente. Hoy el primer paso de la chain (cadena_tres_pasos.py) clasifica con
-un prompt y la salida es texto libre: a veces "Pregunta_producto", a veces "pregunta_producto." o una frase.
-Lo que se quiere enseñar es que SIEMPRE devuelva exactamente este JSON:
-
-    {"categoria": <una de CATEGORIAS>, "responder": <true|false>}
-
-- Categorías: las 4 de la chain del Bloque 18 + comentario_negativo (el flag del Bloque 23).
-- "responder" sigue una regla fija (REGLA_RESPONDER): el validador comprueba que cada ejemplo la cumpla,
-  para que el dataset no le enseñe al modelo dos respuestas distintas para el mismo caso.
-- Los ejemplos están balanceados A PROPÓSITO: en un chat real casi todo es "otro" o "spam", y casi nada es
-  interes_compra, justo lo que más le importa a la marca.
-- EJEMPLOS_PRUEBA no se usa para entrenar: queda aparte para comparar después el modelo afinado contra el prompt.
 """
 import json
 import sys
@@ -99,13 +88,7 @@ def normalizar(texto: str) -> str:
 
 def validar_dataset(examples: list[types.TuningExample], claves_esperadas: tuple[str, ...] = CLAVES,
                     categorias: tuple[str, ...] = CATEGORIAS) -> list[str]:
-    """Todos los problemas del dataset, no solo el primero. Lista vacía = listo para entrenar.
-
-    Además de lo que revisa la lección (vacíos, duplicados, JSON inválido, claves faltantes), revisa lo que
-    la lección deja pasar: que el JSON sea un objeto, que no tenga claves de más, que la categoría esté en la
-    lista cerrada (una tilde crearía una categoría nueva), que "responder" sea booleano y siga la regla, y
-    que la misma entrada no aparezca con dos salidas distintas (una contradicción).
-    """
+    """Todos los problemas del dataset, no solo el primero. Lista vacía = listo para entrenar."""
     problemas = []
     vistos: dict[str, tuple[int, dict]] = {}
     for i, ej in enumerate(examples):

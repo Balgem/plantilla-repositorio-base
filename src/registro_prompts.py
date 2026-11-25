@@ -1,16 +1,10 @@
-"""Versionado del prompt de sistema del flujo RAG (Bloque 32, paso 1).
+"""Registro de versiones de los prompts de sistema (RAG y agente) en prompts/registro_versiones.json.
 
-Uso, desde la raíz del repositorio y con el entorno activo (no llama a la API):
+Cada versión guarda huella, texto, autor, fecha, nota, modelo y estado (propuesta, activa, rechazada
+o reemplazada). El bot usa la versión activa.
+
+Uso:
     python3 src/registro_prompts.py
-
-- El registro vive en prompts/registro_versiones.json y SÍ se sube al repositorio: no tiene datos de viewers,
-  y es justamente el historial que responde "¿qué prompt exacto generó esta respuesta?" (cada respuesta del
-  log del Bloque 31 lleva la huella del prompt que la produjo).
-- Cada versión guarda, además de lo de la lección (nombre, huella, texto, autor, fecha, nota), el MODELO con
-  que se validó y su ESTADO: propuesta -> activa | rechazada, y la activa anterior pasa a reemplazada.
-- "ultima" (la de la lección) es la última REGISTRADA; "activa" es la que usa el bot. No son lo mismo: una
-  versión recién propuesta es la última, pero no se usa hasta que una persona la aprueba (grafo_supervision.py).
-- logging_rag.py lee el prompt activo desde aquí: activar una versión es lo que la "despliega".
 """
 import difflib
 import hashlib
@@ -53,7 +47,7 @@ V3_NO_SE_PARA_EL_VIEWER = V2_ANTI_INYECCION.replace(
 assert V3_NO_SE_PARA_EL_VIEWER != V2_ANTI_INYECCION
 
 
-# --- El historial real del prompt de sistema del AGENTE (Bloques 21 a 23 y Gate 2), sacado de los commits ---
+# --- Historial del prompt del agente (sacado de los commits) ---
 
 V1_AGENTE = (  # Bloque 21, commit 0893570
     "Eres el bot de chat de una campaña publicitaria del teclado mecánico K7 en un stream de Twitch. "
@@ -68,8 +62,7 @@ V2_AGENTE = V1_AGENTE.replace("y dale el link.", "y dale el link que entrega con
 # Bloque 23 (407dd93): la herramienta para marcar comentarios negativos
 V3_AGENTE = V2_AGENTE + (" Si alguien habla mal del producto o de la marca, márcalo con marcar_comentario_negativo y "
                          "responde breve y neutral, sin discutir ni defender el producto.")
-# Gate 2 (68b85d8): copiar la fuente que trae consultar_campana (criterio 2). Entró al código SIN aprobación:
-# por eso se registra como propuesta y se decide con grafo_supervision.py, como cualquier cambio de prompt.
+# Gate 2 (68b85d8): copiar la fuente. Entró sin aprobación, así que se registró como propuesta.
 V4_AGENTE = V3_AGENTE.replace(" Si te preguntan algo", " Si consultar_campana trae '(Fuente: ...)', copia esa fuente "
                               "tal cual al final de tu respuesta. Si te preguntan algo")
 
@@ -92,10 +85,7 @@ class RegistroDePrompts:
             self.versiones = json.loads(archivo.read_text(encoding="utf-8"))
 
     def registrar(self, nombre, texto, autor, nota, modelo=MODELO_VALIDADO, estado="propuesta", fecha=None):
-        """Registra una versión. Si ese texto exacto ya está registrado, NO crea otra (misma huella = mismo prompt).
-
-        fecha: hoy, salvo al reconstruir el historial (la fecha real del commit que introdujo esa versión).
-        """
+        """Registra una versión. Si ese texto exacto ya está registrado, NO crea otra (misma huella = mismo prompt)."""
         if estado not in ESTADOS:
             raise ValueError(f"estado desconocido: {estado!r}")
         existente = self.buscar(nombre, huella_prompt(texto))

@@ -105,8 +105,8 @@ Cosas que la traza mostró y los filtros **no** atrapan (quedan para revisión m
 - El CRM y el envío a la marca son simulados (`REGISTRO_CRM` y `reporte_marca.md`).
 - Falta que el bot no le diga al viewer que su comentario quedó marcado y que no registre compras ante preguntas hipotéticas.
 
-## Actualización para el Gate 2 (2026-11-18)
+## Actualización para el Gate 2
 
-- **El envío del reporte es ahora un grafo de LangGraph** (`construir_grafo` en `src/reporte_marca.py`): `preparar → revisar (interrupt) → enviar`, con checkpointer SQLite en `checkpoints/reporte.db`. El reporte queda pendiente aunque se cierre la terminal, y otra persona lo puede resolver después (`python3 main.py reporte --pendientes`, `--aprobar <thread_id> --comentarios c1,c3`, `--rechazar`). Solo `True` aprueba, el nodo que pregunta no tiene efectos (LangGraph lo vuelve a ejecutar al reanudar), y no se puede decidir dos veces. El flujo por consola de este bloque sigue disponible con `--interactivo`.
-- **Las trazas ya no tienen nombres ni mensajes en claro** (`src/privacidad.py`): el viewer queda como huella HMAC y el mensaje como largo + huella + tipos de dato personal. El único texto que se guarda es el del comentario marcado, redactado (sin correos, teléfonos, RUT ni links), porque una persona tiene que leerlo antes de decidir si va a la marca. Los archivos siguen en `.gitignore`.
-- **Las respuestas en vivo siguen sin aprobación humana**, por la misma razón de arriba. Desde el Gate 2 además deben citar su fuente: una frase sin cita válida no se publica.
+- La aprobación del reporte ahora es un grafo de LangGraph (`src/reporte_marca.py`): se detiene hasta que alguien decide y la decisión pendiente queda guardada en disco. El flujo por consola sigue disponible con `--interactivo`.
+- Las trazas ya no guardan nombres ni mensajes. Solo se guarda el texto de los comentarios marcados, sin datos personales, porque alguien tiene que leerlos.
+- Las respuestas en vivo siguen sin aprobación, pero ahora cada frase tiene que citar su fuente.

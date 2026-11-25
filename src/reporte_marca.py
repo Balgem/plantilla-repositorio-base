@@ -1,24 +1,14 @@
-"""Reporte post-stream para la marca (Bloque 23; punto de supervisión del Gate 2).
+"""Reporte post-stream para la marca, con aprobación humana antes de enviarlo.
 
-Se corre cuando termina la transmisión, no durante el chat. Desde el Gate 2, la aprobación es un grafo de
-LangGraph con interrupt() y checkpointer durable (como el despliegue de prompts del Bloque 32): enviar el
-reporte a la marca es la ACCIÓN de mayor riesgo del sistema (comunica en nombre del canal y no se retira).
-    python3 src/reporte_marca.py                              # arma el reporte y se DETIENE a esperar la decisión
-    python3 src/reporte_marca.py --pendientes                 # qué reportes esperan una decisión
-    python3 src/reporte_marca.py --aprobar <thread_id> --comentarios c1,c3   # enviar, con esos comentarios
-    python3 src/reporte_marca.py --rechazar <thread_id>      # no enviar
-    python3 src/reporte_marca.py --interactivo                # el flujo por consola del Bloque 23
+El grafo arma el reporte desde las trazas y se detiene hasta que alguien elige qué comentarios
+incluir y aprueba o rechaza el envío. El reporte no incluye nombres de viewers.
 
-1. Lee la traza del stream (trazas_agente.jsonl) y cuenta qué pasó: turnos, preguntas, interesados en comprar.
-2. Toma los comentarios negativos que el agente marcó en vivo y pide aprobación humana para CADA uno:
-   solo los aprobados entran al reporte.
-3. Muestra el reporte completo y pide aprobación humana para enviarlo.
-
-Pasos 2 y 3 son las acciones de riesgo alto del sistema: lo que llega a la marca no se puede retirar, y un
-comentario mal marcado (una broma, un viewer que hablaba de otro producto) termina como crítica oficial.
-Sin respuesta a tiempo, el comentario queda fuera y el reporte no se envía.
-
-El reporte no incluye nombres de viewers: la marca recibe lo que se dijo, no quién lo dijo.
+Uso:
+    python3 src/reporte_marca.py
+    python3 src/reporte_marca.py --pendientes
+    python3 src/reporte_marca.py --aprobar THREAD_ID --comentarios c1,c3
+    python3 src/reporte_marca.py --rechazar THREAD_ID
+    python3 src/reporte_marca.py --interactivo     el flujo por consola del Bloque 23
 """
 import argparse
 import getpass
@@ -84,10 +74,7 @@ def datos_del_stream(registros: list[dict]) -> dict:
 
 
 def revisar_comentarios(comentarios: list[dict]) -> list[dict]:
-    """Pide aprobación humana para cada comentario marcado. Devuelve solo los aprobados.
-
-    Cada decisión queda registrada (sí o no). Sin respuesta a tiempo, el comentario NO entra al reporte.
-    """
+    """Pide aprobación humana para cada comentario marcado. Devuelve solo los aprobados."""
     aprobados = []
     for numero, comentario in enumerate(comentarios, start=1):
         aprobado = supervision.esperar_aprobacion(
@@ -137,7 +124,7 @@ def enviar_reporte_a_marca(reporte: str, archivo=None) -> bool:
     return True
 
 
-# --- Gate 2: la misma aprobación como grafo que pausa de verdad y se retoma con una decisión ---
+# --- Aprobación como grafo de LangGraph (se detiene hasta que alguien decide) ---
 
 ARCHIVO_CHECKPOINTS = RAIZ / "checkpoints" / "reporte.db"
 MOTIVO = "aprobar el envío del reporte post-stream a la marca"

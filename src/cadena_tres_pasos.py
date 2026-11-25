@@ -1,17 +1,9 @@
-"""Chain de tres pasos con LangChain para el bot de chat: clasificar → redactar → revisar.
+"""Chain de tres pasos (Bloque 18): clasificar -> redactar -> revisar.
 
-1. Clasificar: decide qué tipo de mensaje es (pregunta_producto, interes_compra, spam u otro).
-   Desde el Gate 2 con salida estructurada (with_structured_output + el esquema Clasificacion): la API solo puede
-   devolver una de las 4 categorías. Es la mejora que dejó la decisión del Bloque 30 (docs/decision_personalizacion.md).
-2. Redactar: escribe la respuesta para el chat según esa categoría, usando solo los datos de la campaña.
-3. Revisar: compara el borrador con los datos de la campaña y corrige cualquier dato inventado
-   (precio, descuento, envío) antes de publicarlo.
+El paso 1 usa salida estructurada (Clasificacion) cuando el modelo la soporta, así solo puede
+devolver una de las 4 categorías. El paso 3 corrige datos inventados antes de publicar.
 
-Cada paso depende del anterior: el redactor necesita la categoría para decidir si responde,
-y el revisor necesita el borrador para corregirlo. El paso 3 existe porque en el Bloque 17
-vimos que la métrica no detecta un precio falso ni una negación ausente.
-
-Uso, desde la raíz del repositorio y con el entorno activo:
+Uso:
     python3 src/cadena_tres_pasos.py
 """
 import logging
@@ -52,13 +44,7 @@ class Clasificacion(BaseModel):
 
 
 def construir_clasificador(modelo):
-    """Paso 1: plantilla -> modelo -> categoría (str).
-
-    - Con un modelo de chat que soporta salida estructurada (Gemini): with_structured_output(Clasificacion).
-      No hace falta normalizar mayúsculas ni puntos: la respuesta ya viene validada contra la lista cerrada.
-    - Con un modelo que no la soporta (los modelos falsos de las pruebas): el camino de texto del Bloque 18,
-      con .strip().lower().
-    """
+    """Paso 1: devuelve la categoría. Usa salida estructurada si el modelo la soporta; si no, texto normalizado."""
     if isinstance(modelo, BaseChatModel):
         try:
             estructurado = modelo.with_structured_output(Clasificacion)
@@ -91,10 +77,7 @@ plantilla_revisar = PromptTemplate.from_template(
 
 
 def construir_cadena(modelo):
-    """Arma la chain de tres pasos sin ejecutarla. Recibe el modelo como parámetro para poder usar un mock.
-
-    Entrada: {"mensaje": "..."}. Salida: el texto final para publicar en el chat (str).
-    """
+    """Arma la chain de tres pasos sin ejecutarla. Recibe el modelo como parámetro para poder usar un mock."""
     paso_clasificar = construir_clasificador(modelo)
     paso_redactar = plantilla_redactar | modelo | StrOutputParser()
     paso_revisar = plantilla_revisar | modelo | StrOutputParser()
@@ -110,12 +93,7 @@ def construir_cadena(modelo):
 
 
 def crear_modelo(nombre: str | None = None):
-    """Crea un modelo de Gemini con la llave del .env. Por defecto, el modelo de GEMINI_MODEL.
-
-    - No se pasa temperature: gemini-3.5-flash-lite usa valores de muestreo fijos y la ignora.
-    - timeout=30: si Gemini no responde, la demora se convierte en excepción (y salta el fallback).
-    - max_retries=2: el conector reintenta 6 veces por defecto; con 2 se llega antes al plan B.
-    """
+    """Crea un modelo de Gemini con la llave del .env. Por defecto, el modelo de GEMINI_MODEL."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     return ChatGoogleGenerativeAI(

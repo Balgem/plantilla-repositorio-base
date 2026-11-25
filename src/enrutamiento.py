@@ -1,21 +1,11 @@
-"""Enrutamiento condicional del bot con manejo de errores por paso.
+"""Enrutamiento por categoría con respaldos (Bloques 19 y 20).
 
-    procesar_mensaje_seguro (try/except general + logging)
-    └─ clasificar (con modelo secundario de respaldo)
-       ├─ pregunta_producto → responder con los datos → revisar ─┐ fallbacks: modelo secundario
-       ├─ interes_compra    → invitar a comprar       → revisar ─┘            → texto fijo verdadero
-       └─ cualquier otra    → (sin respuesta), sin llamar al modelo
+pregunta_producto e interes_compra tienen su ruta; cualquier otra categoría no recibe respuesta.
+Si falla el modelo principal se usa el secundario, y si falla también, un texto fijo con datos reales.
 
-Decisiones para un bot en un chat en vivo:
-- La ruta por defecto es NO responder: ante spam o una categoría inesperada, el bot se queda callado.
-- Los fallbacks finales son textos fijos con datos verdaderos de la campaña (precio y link), no una
-  promesa como "un miembro del equipo te va a responder", que en un chat de Twitch no se cumpliría.
-- Si falla el revisor, no se publica el borrador sin revisar: cae en el texto fijo.
-- Si falla todo lo demás, el bot no responde y el error queda registrado con logging.
-
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 src/enrutamiento.py                   flujo normal
-    python3 src/enrutamiento.py --simular-falla   el modelo principal no existe: todo pasa al de respaldo
+Uso:
+    python3 src/enrutamiento.py
+    python3 src/enrutamiento.py --simular-falla
 """
 import logging
 import sys
@@ -72,11 +62,7 @@ def respuesta_fija(texto: str):
 
 
 def avisar(descripcion: str):
-    """Paso que deja registrado que se está usando un respaldo y deja pasar la entrada sin cambios.
-
-    Un fallback que no avisa oculta el problema: el bot seguiría funcionando con el plan B
-    sin que nadie sepa que el modelo principal está caído.
-    """
+    """Paso que deja registrado que se está usando un respaldo y deja pasar la entrada sin cambios."""
     def registrar(entrada):
         logger.warning("Falló el paso principal; se usa el respaldo: %s", descripcion)
         return entrada
@@ -85,10 +71,7 @@ def avisar(descripcion: str):
 
 
 def construir_ruta_segura(ruta, texto_respaldo: str, ruta_secundaria=None):
-    """Protege una ruta: si falla, prueba la ruta con el modelo secundario y, si también falla, el texto fijo.
-
-    Cada respaldo que se usa queda registrado como WARNING.
-    """
+    """Protege una ruta: si falla, prueba la ruta con el modelo secundario y, si también falla, el texto fijo."""
     alternativas = []
     if ruta_secundaria is not None:
         alternativas.append(avisar("ruta con el modelo secundario") | ruta_secundaria)
@@ -130,11 +113,7 @@ def construir_cadena(modelo, modelo_secundario=None):
 
 
 def procesar_mensaje_seguro(cadena, mensaje: str) -> str:
-    """Punto de entrada del bot: nunca lanza una excepción.
-
-    Un mensaje vacío no llama al modelo. Si algo falla fuera de los fallbacks (por ejemplo, la
-    clasificación con los dos modelos caídos), registra el error con su traceback y el bot no responde.
-    """
+    """Punto de entrada del bot: nunca lanza una excepción."""
     if not isinstance(mensaje, str) or not mensaje.strip():
         return SIN_RESPUESTA
     try:

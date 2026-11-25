@@ -1,21 +1,9 @@
-"""Servicio RAG del bot de la campaña K7, de punta a punta (Gate 2).
+"""Servicio RAG del bot: actualiza el índice, responde preguntas con su fuente y muestra lo que espera aprobación.
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 servicio_rag.py                                  # corrida real: índice persistido + Gemini
-    python3 servicio_rag.py --pregunta "¿llega a Arica?"     # una pregunta propia
-    python3 servicio_rag.py --simulado                       # sin clave ni costo: embeddings y modelo simulados
-(También: python3 main.py servicio / python3 main.py consulta "pregunta".)
-
-Qué hace, en orden:
-1. Índice: abre vectorstore/ y lo actualiza de forma INCREMENTAL (Bloque 25): si el corpus no cambió, no
-   recalcula ningún embedding; si el índice no existe (entorno limpio), lo crea y mide cuánto tardó.
-2. Consultas: logging_rag.responder -> filtro de inyección (pregunta y chunks), prompt versionado y aprobado
-   (Bloque 32), modelo, citas, filtros de salida, logs JSON con trace_id y consumo (Bloque 31).
-   Cada respuesta se imprime con su fuente, su trace_id y su traza de auditoría (los eventos de ESA consulta).
-3. Supervisión humana: muestra qué está esperando una decisión (reporte a la marca y prompts propuestos).
-   Las decisiones se toman con sus propios comandos; este servicio nunca aprueba nada por su cuenta.
-
-Termina con código 0 si todo corrió; 1 si falta algo para correr (clave, dependencia), con el motivo.
+Uso:
+    python3 servicio_rag.py                         con Gemini y el índice de vectorstore/
+    python3 servicio_rag.py --pregunta "¿envío?"    una pregunta propia
+    python3 servicio_rag.py --simulado              sin clave: embeddings y modelo simulados
 """
 from __future__ import annotations
 

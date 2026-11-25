@@ -15,10 +15,7 @@ from consumir_gemini import INSTRUCCION_BOT
 
 
 def limpiar_texto(texto: str) -> str:
-    """Normaliza el texto: minúsculas, sin puntuación ni símbolos (emojis incluidos) y sin espacios repetidos.
-
-    Las tildes, la ñ y los números se conservan. Lanza TypeError si no recibe un str.
-    """
+    """Normaliza el texto: minúsculas, sin puntuación ni símbolos (emojis incluidos) y sin espacios repetidos."""
     if not isinstance(texto, str):
         raise TypeError(f"limpiar_texto espera str, no {type(texto).__name__}")
     texto = texto.lower()
@@ -42,12 +39,7 @@ def vectorizar(tokens: list[str]) -> Counter:
 
 
 def coincidencia(tokens_referencia: list[str], tokens_respuesta: list[str]) -> float:
-    """Proporción de palabras distintas de la referencia que también aparecen en la respuesta.
-
-    Devuelve un valor entre 0 y 1. Si la referencia no tiene palabras, devuelve 0 en vez de dividir por cero.
-    No considera el orden ni las repeticiones: "el perro persiguió al gato" y
-    "el gato persiguió al perro" dan 1.0.
-    """
+    """Proporción de palabras distintas de la referencia que también aparecen en la respuesta."""
     palabras_referencia = set(tokens_referencia)
     if not palabras_referencia:
         return 0.0

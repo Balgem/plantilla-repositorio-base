@@ -1,15 +1,10 @@
-"""Recuperación semántica y prompt dinámico con citas sobre el corpus de la campaña (Bloque 26).
+"""Recuperación semántica y prompt con citas numeradas (Bloque 26).
 
-Uso, desde la raíz del repositorio y con el entorno activo (el índice ya tiene que existir):
-    python3 src/indexar_corpus.py --verificar   # opcional: confirma que hay 15 chunks
+Recupera los k chunks más cercanos, arma el prompt con el contexto numerado y revisa las citas
+de la respuesta (inventadas o ausentes).
+
+Uso:
     python3 src/recuperacion.py
-
-1. construir_prompt: se reconecta al índice (NO reindexa), recupera los k chunks más cercanos a la pregunta
-   y arma un prompt con el contexto numerado [1], [2], [3] y la instrucción de citar o decir que no sabe.
-2. responder: le pasa ese prompt al modelo y revisa las citas de la respuesta: números que no existen
-   en el contexto (inventados) y frases sin ninguna cita (candidatas a invento).
-
-En el bot, los corchetes no se le muestran al viewer: las citas sirven para verificar y para la traza.
 """
 import re
 
@@ -34,9 +29,7 @@ Respuesta:"""
 
 SIN_CONTEXTO = "(no se recuperó ningún fragmento)"
 
-# Frases con las que el modelo admite que el contexto no alcanza. No citan nada, y está bien: son la salida
-# que el prompt pide en vez de inventar. Sin esto, "El contexto no alcanza para responder..." se marcaba
-# como frase sin cita (candidata a invento), al revés de lo que es.
+# Frases con las que el modelo admite que no sabe: no llevan cita y no deben contarse como invento.
 ADMITE_NO_SABER = re.compile(
     r"contexto no (alcanza|menciona|indica|dice|incluye|especifica)|no (tengo|hay|se tiene) (esa )?informaci[oó]n|"
     r"no tengo (ese|este|el) dato|"  # la forma que pide la v3 del prompt (Bloque 32)
@@ -59,12 +52,7 @@ def formatear_contexto(chunks_recuperados) -> tuple[str, dict[int, str]]:
 
 
 def construir_prompt(pregunta: str, indice=None, k: int = K):
-    """Recupera los k chunks más relevantes y arma el prompt dinámico.
-
-    Recibe el índice ya conectado para no reconectarse en cada pregunta; si no se pasa, se conecta una vez.
-    Nunca llama a from_documents: solo calcula el embedding de la pregunta.
-    Devuelve (prompt, citas, chunks_recuperados).
-    """
+    """Recupera los k chunks más relevantes y arma el prompt dinámico."""
     if not pregunta or not pregunta.strip():
         raise ValueError("La pregunta está vacía.")
     if indice is None:
@@ -77,13 +65,7 @@ def construir_prompt(pregunta: str, indice=None, k: int = K):
 
 
 def revisar_citas(respuesta: str, citas: dict[int, str]) -> dict:
-    """Revisa las citas de una respuesta del modelo.
-
-    - fuentes: archivos que respaldan la respuesta (solo citas válidas).
-    - inventadas: números que no estaban en el contexto (por ejemplo [99]).
-    - admite_no_saber: frases sin cita en las que el modelo dice que el contexto no alcanza (lo correcto).
-    - sin_cita: el resto de las frases que no citan nada: candidatas a invento.
-    """
+    """Revisa las citas de una respuesta del modelo."""
     numeros = [int(n) for n in re.findall(r"\[(\d+)\]", respuesta)]
     frases = [f for f in re.split(r"(?<=[.!?])\s+", respuesta.strip()) if f]
     sin_cita = [f for f in frases if not re.search(r"\[\d+\]", f)]

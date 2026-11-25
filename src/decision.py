@@ -1,18 +1,11 @@
-"""Decisión fundamentada de personalización para el clasificador del chat (Bloque 30).
+"""Decisión de personalización del clasificador con evidencia (Bloque 30).
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 src/decision.py            # mide la evidencia (40 llamadas a Gemini), puntúa y arma el esqueleto
-    python3 src/decision.py --sin-api  # puntúa con la última evidencia guardada, sin llamar a la API
+Pasa 20 mensajes etiquetados por el clasificador actual y por la versión con salida estructurada,
+puntúa RAG / fine-tuning / PEFT y arma docs/decision_personalizacion.md (sin pisarlo si ya existe).
 
-Paso 0 (evidencia): el criterio de "problema_de_formato_o_tono" pide revisar 20 respuestas reales y contar
-cuántas no cumplen el formato. Se usan los 20 mensajes etiquetados del dataset del Bloque 29 que tienen una
-categoría de la chain actual (5 por categoría) y se pasan por el clasificador que el bot usa hoy (el primer
-paso de cadena_tres_pasos.py). Para comparar, los mismos 20 se pasan con salida estructurada (with_structured_output
-+ categorías cerradas), una alternativa que no necesita entrenar nada.
-
-Paso 1: las 5 respuestas del método, cada una con la evidencia que la sustenta.
-Paso 2: el esqueleto de docs/decision_personalizacion.md. Si el documento ya existe (completado a mano), NO se
-pisa: el esqueleto nuevo se escribe en docs/decision_personalizacion_esqueleto.md.
+Uso:
+    python3 src/decision.py            mide con Gemini (40 llamadas)
+    python3 src/decision.py --sin-api  usa la última evidencia guardada
 """
 import argparse
 import json

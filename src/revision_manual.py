@@ -1,16 +1,7 @@
-"""Revisión manual de la muestra de respuestas del bot (Bloque 17).
+"""Revisión manual de 10 respuestas del bot (Bloque 17): corrección, completitud y contradicciones.
 
-Muestra: los 5 casos con F1 más bajo y los 5 con F1 más alto de las 20 respuestas
-de docs/resultados_metricas.json (generadas el 2026-10-30 con gemini-3.5-flash-lite).
-
-Rúbrica, por caso:
-- correccion_factual: ¿los datos verificables (precio, link) coinciden con la campaña? si / no / parcialmente
-- completitud: ¿cubre lo que cubre la referencia? si / no / parcialmente
-- contradiccion: ¿afirma lo contrario de algo de la referencia (por ejemplo, un descuento)? si / no
-
-Uso, desde la raíz del repositorio:
+Uso:
     python3 src/revision_manual.py
-Guarda la revisión en docs/revision_manual.json.
 """
 import json
 from pathlib import Path

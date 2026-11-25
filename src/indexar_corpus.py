@@ -1,18 +1,12 @@
-"""Indexa el corpus de la campaña y persiste los embeddings en Chroma (Bloque 24).
+"""Indexa corpus/campana_k7/ en Chroma (Bloques 24 y 25).
 
-Indexación incremental (Bloque 25): solo calcula embeddings de los chunks nuevos o que cambiaron, y borra
-los que ya no están en el corpus. Correrlo sin cambios en el corpus no llama a la API:
+La actualización es incremental: solo se calculan embeddings de los chunks nuevos o modificados.
+El índice queda en vectorstore/ (no se sube al repo).
+
+Uso:
     python3 src/indexar_corpus.py
-Desde cero (borra la colección y recalcula todo; por ejemplo, si se cambia el modelo de embeddings):
     python3 src/indexar_corpus.py --desde-cero
-Comprobar que quedó en disco, en un proceso nuevo y SIN recalcular embeddings:
     python3 src/indexar_corpus.py --verificar
-
-- Corpus: corpus/campana_k7/*.md, un tema por archivo (ficha técnica, precio, despacho, garantía...).
-- Chunking: RecursiveCharacterTextSplitter, documento por documento, para que un chunk nunca mezcle
-  dos archivos (dos temas). Ver CHUNK_SIZE más abajo para el porqué del tamaño.
-- Embeddings: gemini-embedding-001 (una llamada por chunk, gasta tokens reales).
-- Persistencia: vectorstore/ en la raíz del repo (en .gitignore: se regenera con este script).
 """
 import argparse
 import hashlib
@@ -33,12 +27,8 @@ CARPETA_VECTORSTORE = RAIZ / "vectorstore"
 COLECCION = "campana_k7"
 MODELO_EMBEDDINGS = "models/gemini-embedding-001"
 
-# Los párrafos del corpus miden entre 60 y 182 caracteres y cada uno es una idea completa.
-# - 250 deja entrar el párrafo más largo entero (no se corta ninguna oración) y como mucho junta
-#   2 o 3 párrafos cortos del MISMO archivo, que hablan del mismo tema: 6 documentos -> 15 chunks.
-# - Con 150 se partían párrafos y quedaban chunks como "cuesta 3.990 CLP" sin decir de qué (lección 2).
-# - Con 400 o más, una pregunta frecuente quedaba mezclada con otras 2 o 3 (ruido + ñ + hot-swap).
-# El overlap (~15 %) solo actúa si algún párrafo supera 250 caracteres.
+# Los párrafos miden entre 60 y 182 caracteres. Con 250 entra el más largo sin cortarse (6 documentos -> 15 chunks);
+# con 150 se partían oraciones y con 400 se mezclaban preguntas distintas en un mismo chunk.
 CHUNK_SIZE = 250
 CHUNK_OVERLAP = 40
 
@@ -95,14 +85,7 @@ def huella_contenido(texto: str) -> str:
 
 def actualizar_indice(chunks: list[Document], embeddings, carpeta: Path = CARPETA_VECTORSTORE,
                       desde_cero: bool = False) -> tuple[Chroma, dict]:
-    """Actualización incremental con ids explícitos (Bloque 25). Devuelve (índice, resumen de cambios).
-
-    Compara cada chunk con lo que ya está en el índice por id y por huella del contenido:
-    - nuevo (id que no estaba) o cambiado (misma posición, otro texto): se calcula su embedding y se guarda;
-    - borrado (id que ya no está en el corpus): se elimina, para que no siga apareciendo en las búsquedas;
-    - sin cambios: no se toca y NO se llama a la API.
-    Con desde_cero=True se borra la colección completa antes (lo que hacía la versión del Bloque 24).
-    """
+    """Agrega o actualiza solo los chunks nuevos o modificados y borra los que ya no están. Devuelve (índice, resumen)."""
     if desde_cero:
         Chroma(collection_name=COLECCION, embedding_function=embeddings,
                persist_directory=str(carpeta)).delete_collection()

@@ -1,13 +1,12 @@
-"""Punto de entrada único del proyecto: todos los flujos del Gate 1 y del Módulo 2 desde un solo archivo.
+"""Punto de entrada del proyecto. Todos los flujos se corren desde aquí.
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 main.py                                   muestra todos los comandos
-    python3 main.py servicio                          el servicio RAG de punta a punta (Gate 2)
-    python3 main.py consulta "¿llega a Arica?"        una pregunta al servicio
-    python3 main.py gate2                             las 4 pruebas de los criterios no compensables
-    python3 main.py <comando> --help                  la ayuda propia de cada comando
+Uso:
+    python3 main.py                      lista de comandos
+    python3 main.py servicio             el servicio RAG completo
+    python3 main.py consulta "pregunta"  una pregunta al servicio
+    python3 main.py gate2                pruebas de los criterios no compensables
 
-Los argumentos que siguen al comando pasan tal cual al script (por ejemplo: python3 main.py indexar --verificar).
+Lo que va después del comando se le pasa al script (ej.: python3 main.py indexar --verificar).
 """
 from __future__ import annotations
 
@@ -28,7 +27,7 @@ sys.path.insert(0, str(RAIZ / "prompts"))
 
 # comando -> (script, argumentos fijos, descripción, grupo)
 COMANDOS = {
-    # Gate 2: el servicio y su verificación
+    # Gate 2
     "servicio": ("servicio_rag.py", [], "servicio RAG de punta a punta: índice, consultas con fuente, supervisión", "Gate 2"),
     "consulta": ("servicio_rag.py", ["--pregunta"], 'una pregunta al servicio: python3 main.py consulta "¿llega a Arica?"', "Gate 2"),
     "verificar": ("verificar_entorno.py", [], "comprueba Python, librerías, clave e índice antes de correr", "Gate 2"),

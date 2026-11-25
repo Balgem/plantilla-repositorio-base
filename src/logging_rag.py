@@ -1,22 +1,13 @@
-"""Flujo RAG del bot instrumentado: logs JSON con trace_id, consumo por consulta y filtro de inyección (Bloque 31).
+"""Flujo RAG instrumentado (Bloque 31): logs JSON con trace_id, consumo y filtro de inyección.
 
-Uso, desde la raíz del repositorio y con el entorno activo:
-    python3 src/logging_rag.py          # pruebas de la actividad con documentos armados a mano (sin API)
-    python3 src/logging_rag.py --real   # además, 2 consultas reales contra el índice y Gemini
+Los logs no guardan la pregunta ni el contenido de los chunks: solo largos, huellas e ids.
+Defensas contra inyección: detector sobre la pregunta y los chunks, contexto delimitado,
+roles separados y filtros sobre la respuesta.
 
-Cada consulta deja eventos JSON (en la terminal y en logs/rag.jsonl) con el mismo trace_id, y con eso se
-reconstruye después qué pasó: cuántos chunks se recuperaron, cuáles se descartaron y por qué, cuánto costó,
-qué fuentes citó la respuesta y si un filtro de salida tuvo que corregirla.
-
-Qué se loguea y qué no (gobernanza): la pregunta del viewer va como largo + huella, no como texto; los chunks
-van por id (archivo#n), no por contenido. El contenido del corpus es de la marca y vive en corpus/.
-
-Defensa en profundidad, en este orden:
-  capa 3  detectar_inyeccion sobre la PREGUNTA (inyección directa: el chat es público) y sobre cada CHUNK
-          recuperado (inyección indirecta). Patrones normalizados: sin tildes ni espacios de más.
-  capa 2  el contexto que sobrevive va entre <contexto> y </contexto>, declarado como dato.
-  capa 1  instrucciones en SystemMessage, contexto y pregunta en HumanMessage.
-  capa 4  filtrar_salida sobre la RESPUESTA (link oficial, promesas): no depende de adivinar el ataque.
+Uso:
+    python3 src/logging_rag.py            demo sin API
+    python3 src/logging_rag.py --real     dos consultas reales
+    python3 src/logging_rag.py --revisar  consultas marcadas para revisión
 """
 import argparse
 import contextvars
@@ -152,9 +143,7 @@ def filtrar_documentos_sospechosos(chunks) -> tuple[list, list]:
 
 # --- Capas 1 y 2: roles separados y contexto delimitado ---
 
-# El prompt de sistema ya no vive aquí: se lee del registro de versiones (Bloque 32). Activar una versión
-# en prompts/registro_versiones.json (con aprobación, grafo_supervision.py) es lo que la despliega.
-# El texto histórico de la versión del Bloque 31 quedó en registro_prompts.V2_ANTI_INYECCION.
+# El prompt de sistema se lee del registro de versiones (registro_prompts.py).
 
 
 def construir_mensajes(pregunta: str, chunks, instrucciones: str | None = None) -> tuple[list, dict[int, str]]:
@@ -175,15 +164,7 @@ RESPUESTA_SIN_CONTEXTO = "No tengo información verificada sobre eso."
 
 
 def armar_publicacion(texto: str, citas: dict[int, str]) -> dict:
-    """De la respuesta del modelo a lo que se publica en el chat (criterio 2 del Gate 2: cada respuesta cita).
-
-    Frase por frase:
-    - con al menos una cita válida [n]: se publica sin los corchetes y su fuente va a la etiqueta final;
-    - sin cita, pero admitiendo que no sabe ("No tengo ese dato del K7"): se publica (no afirma nada);
-    - sin cita y afirmando algo: NO se publica (sin cita no se distingue de una alucinación).
-    Cada frase que queda pasa además por filtrar_salida (capa 4). Las fuentes salen de la metadata de los
-    chunks recuperados (citas), nunca del texto que escribió el modelo.
-    """
+    """Arma el texto a publicar: solo frases con cita válida (o que admiten no saber), con la fuente al final."""
     publicadas, fuentes, quitadas_sin_cita, filtro_actuo = [], [], 0, False
     for frase in [f for f in re.split(r"(?<=[.!?])\s+", texto.strip()) if f]:
         validos = [int(n) for n in re.findall(r"\[(\d+)\]", frase) if int(n) in citas]
@@ -206,12 +187,7 @@ def armar_publicacion(texto: str, citas: dict[int, str]) -> dict:
 
 
 def responder(pregunta: str, buscar, modelo, nombre_modelo: str = "gemini-3.5-flash-lite") -> dict:
-    """Una consulta del chat de punta a punta. buscar(pregunta) -> chunks (el retriever real, o uno de prueba).
-
-    Devuelve {"trace_id", "respuesta", "fuentes"}: el texto a publicar (con su fuente) y de dónde salió.
-    Nunca lanza una excepción por una falla de la API: la registra y el bot no responde (criterio 1).
-    Todo lo que pasó queda en los logs con el mismo trace_id, sin el texto del viewer (criterio 3).
-    """
+    """Responde una pregunta del chat. Devuelve trace_id, respuesta y fuentes; nunca lanza excepciones de la API."""
     token = trace_id_var.set("trace-" + uuid.uuid4().hex[:8])  # uno nuevo por consulta, nunca global
     trace_id = trace_id_var.get()
 
@@ -269,7 +245,7 @@ def procesar_consulta(pregunta: str, buscar, modelo, nombre_modelo: str = "gemin
     return responder(pregunta, buscar, modelo, nombre_modelo)["respuesta"]
 
 
-# --- Punto de revisión humana (Bloque 32): lo que el bot frenó o corrigió, para que una persona lo mire ---
+# --- Revisión de lo que el bot frenó o corrigió ---
 
 EVENTOS_A_REVISAR = ("pregunta_descartada_por_inyeccion", "documento_descartado_por_inyeccion", "error_modelo")
 

@@ -1,14 +1,10 @@
-"""Evaluación de la recuperación con precisión@k y recall@k (Bloque 27).
+"""Precisión@k y recall@k de la recuperación sobre 15 casos etiquetados a mano (Bloque 27).
 
-Uso, desde la raíz del repositorio y con el entorno activo (el índice ya tiene que existir):
-    python3 src/evaluacion_recuperacion.py            # k=3 (el del bot), dos veces + k=5, y guarda los resultados
-    python3 src/evaluacion_recuperacion.py --k 2      # otra configuración para comparar
+Las preguntas sin respuesta en el corpus se reportan aparte. Cada corrida se guarda en docs/evaluaciones/.
 
-- CASOS_EVALUACION se etiquetó leyendo corpus/campana_k7/ ANTES de correr el retriever con estas preguntas.
-- Las preguntas sin respuesta en el corpus se evalúan aparte: no tienen recall (no hay nada que recuperar) y
-  su precisión siempre sería 0 (el retriever igual trae k chunks), así que no entran en los promedios.
-- Cada corrida se guarda en docs/evaluaciones/<fecha>_cs<chunk_size>_k<k>.txt, con la configuración leída
-  de indexar_corpus.py (no escrita a mano), para comparar la próxima vez que cambie algo.
+Uso:
+    python3 src/evaluacion_recuperacion.py
+    python3 src/evaluacion_recuperacion.py --k 2
 """
 import argparse
 from datetime import date
@@ -70,11 +66,7 @@ def promediar(valores) -> float:
 
 
 def evaluar_recuperacion(retriever, casos, k: int = K) -> tuple[list[dict], float, float]:
-    """Corre cada caso contra el retriever y promedia precisión y recall de las preguntas CON respuesta.
-
-    Cada resultado guarda también los ids recuperados y la posición del primer relevante (1 = primero),
-    para poder ver qué falla, no solo cuánto.
-    """
+    """Corre cada caso contra el retriever y promedia precisión y recall de las preguntas CON respuesta."""
     resultados = []
     for caso in casos:
         chunks = retriever.invoke(caso["pregunta"])

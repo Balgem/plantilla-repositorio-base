@@ -1,14 +1,7 @@
-"""Privacidad de los logs y trazas (Gate 2, criterio no compensable 3: sin PII ni contenido crudo en texto plano).
+"""Huellas y redacción de datos personales para logs y trazas.
 
-Todo lo que el bot escribe en disco sobre un viewer pasa por aquí:
-- huella(texto): HMAC-SHA256 con una clave propia de esta instalación. Sirve para agrupar ("¿el mismo viewer
-  preguntó 3 veces?") sin guardar el texto. Con SHA-256 SIN clave (Bloque 31), quien tenga una lista de correos
-  o nombres candidatos puede comprobar cuál está detrás de una huella; con HMAC, sin la clave no puede.
-- redactar(texto): reemplaza correos, teléfonos, RUT y links ajenos a la campaña por una etiqueta. Se usa en lo
-  que SÍ hay que guardar como texto (el comentario que una persona revisa antes del reporte a la marca).
-
-La clave sale de CLAVE_HUELLAS (.env) o, si no está, de logs/.clave_huellas, que se crea sola la primera vez
-(logs/ está en .gitignore). Así las huellas son estables entre corridas sin pedir configuración extra.
+huella() usa HMAC con una clave propia (CLAVE_HUELLAS en .env, o logs/.clave_huellas, que se crea sola).
+redactar() reemplaza correos, RUT, teléfonos y links ajenos a la campaña por una etiqueta.
 """
 import hashlib
 import hmac
@@ -72,11 +65,7 @@ DATOS_PERSONALES = ("correo", "rut", "telefono")
 
 
 def redactar(texto: str, tipos=tuple(PATRONES_PII)) -> str:
-    """Reemplaza cada dato personal por [correo], [rut], [telefono] o [link]. El link oficial se deja.
-
-    tipos=DATOS_PERSONALES deja los links: sirve para las respuestas del MODELO, donde un link inventado es
-    justo lo que la revisión humana tiene que ver (Bloque 23), y no es un dato de un viewer.
-    """
+    """Reemplaza cada dato personal por [correo], [rut], [telefono] o [link]. El link oficial se deja."""
     if not texto:
         return texto
     resultado = texto

@@ -1,11 +1,9 @@
-"""Autoevaluación del Gate 2 con la función de la rúbrica (Bloque S1).
+"""Autoevaluación del Gate 2 con la fórmula de la rúbrica.
 
-Uso, desde la raíz del repositorio y con el entorno activo (no llama a la API):
-    python3 src/autoevaluacion_gate2.py          (o python3 main.py autoevaluacion)
+Los puntajes por dimensión son mi estimación; los criterios no compensables se miden corriendo test_gate2.py.
 
-- Los puntajes por dimensión son MI estimación, cada uno con su justificación y lo que le falta.
-- Los cuatro criterios no compensables NO son una estimación: salen de correr test_gate2.py en este momento.
-  Si alguno falla, el resultado es "no estoy listo", sea cual sea el promedio (caso 1 de la lección).
+Uso:
+    python3 src/autoevaluacion_gate2.py
 """
 import subprocess
 import sys

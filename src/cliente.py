@@ -38,12 +38,7 @@ costo_total_sesion = 0.0
 
 
 def registrar_costo(respuesta_json: dict) -> float:
-    """Calcula el costo de una operación exitosa, lo suma al total de la sesión y lo muestra.
-
-    Usa los tokens reales de usageMetadata y el precio del modelo configurado en GEMINI_MODEL,
-    distinguiendo entre entrada y salida. Si el modelo no tiene precio conocido o la respuesta
-    no trae el conteo de tokens, registra 0 y lo avisa.
-    """
+    """Calcula el costo de una operación exitosa, lo suma al total de la sesión y lo muestra."""
     global costo_total_sesion
     modelo = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     precios = PRECIOS_POR_MILLON.get(modelo)
@@ -67,13 +62,7 @@ def consultar_modelo(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
 ) -> str:
-    """Consulta al modelo y devuelve el texto de la respuesta.
-
-    Reintenta automáticamente ante límite de uso o saturación. Si se agotan los
-    reintentos, lanza RuntimeError con un mensaje pensado para quien usa el cliente.
-    Un ValueError (credencial inválida o entrada vacía) se propaga tal cual.
-    El costo se registra solo cuando la respuesta llega con éxito.
-    """
+    """Consulta al modelo y devuelve el texto de la respuesta."""
     url, headers, body = armar_peticion(pregunta, system_instruction, response_schema)
     try:
         respuesta_json, _ = con_reintentos(lambda: enviar_peticion(url, headers, body))

@@ -1,9 +1,4 @@
-"""Supervisión humana (Bloque 23): pedir aprobación con límite de tiempo y registrar cada decisión.
-
-Se usa en el reporte post-stream (src/reporte_marca.py), que es donde están las acciones de riesgo alto:
-lo que se manda a la marca ya no se puede retirar. El agente en vivo no tiene acciones de riesgo alto.
-
-El archivo aprobaciones.jsonl queda en .gitignore: tiene comentarios de viewers.
+"""Aprobación por consola con tiempo límite y registro de cada decisión (Bloque 23).
 """
 import getpass
 import json
@@ -21,12 +16,7 @@ registro_aprobaciones: list[dict] = []
 
 
 def esperar_aprobacion(mensaje: str, tiempo_limite_segundos: float = TIEMPO_LIMITE_APROBACION) -> bool:
-    """Pide una confirmación por consola (s/n) con límite de tiempo. Ante cualquier duda, devuelve False.
-
-    - Sin respuesta a tiempo: False (para una acción de riesgo alto, lo seguro es NO ejecutarla).
-    - Sin una consola interactiva (dentro de pytest, o en un proceso sin terminal): False.
-    select() sobre stdin funciona en Linux y macOS; en Windows haría falta un hilo con threading.Event.
-    """
+    """Pide una confirmación por consola (s/n) con límite de tiempo. Ante cualquier duda, devuelve False."""
     print(mensaje, end="", flush=True)
     try:
         listo, _, _ = select.select([sys.stdin], [], [], tiempo_limite_segundos)
@@ -42,11 +32,7 @@ def esperar_aprobacion(mensaje: str, tiempo_limite_segundos: float = TIEMPO_LIMI
 
 
 def registrar_aprobacion(accion: str, argumentos: dict, aprobado: bool, archivo=None) -> None:
-    """Guarda cada decisión, sea sí o no: qué acción, con qué datos, quién decidió y cuándo.
-
-    Queda en memoria (registro_aprobaciones) y en aprobaciones.jsonl, para poder responder después
-    "¿quién aprobó que este comentario fuera a la marca?". Si el archivo falla, se registra el error.
-    """
+    """Guarda cada decisión, sea sí o no: qué acción, con qué datos, quién decidió y cuándo."""
     registro = {
         "accion": accion,
         "argumentos": argumentos,

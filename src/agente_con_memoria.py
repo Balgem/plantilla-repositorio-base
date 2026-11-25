@@ -1,19 +1,9 @@
-"""Agente del bot con memoria por viewer (Bloque 22).
+"""Agente con memoria por viewer (Bloque 22).
 
-Junta las tres piezas del bloque:
-1. Herramientas (agente_con_herramientas.py), con args_schema en registrar_interes_compra.
-2. Agente y ejecutor, con chat_history ANTES del mensaje y agent_scratchpad DESPUÉS.
-3. Memoria: un historial por viewer (session_id = nombre de usuario de Twitch).
+Cada viewer tiene su propio historial (los últimos MAX_MENSAJES). Cada turno queda en la traza
+(src/trazas.py), y un mensaje con un intento de inyección no llega al agente.
 
-Lo que agrega respecto del ejemplo de la lección, por ser un chat público con cientos de viewers:
-- Cada historial guarda solo los últimos MAX_MENSAJES: la memoria y el costo por turno no crecen sin límite.
-- cerrar_sesion() y cerrar_todas() para liberar memoria (por ejemplo, al terminar el stream).
-- La sesión sale del nombre entre corchetes del mensaje, así un viewer no puede usar la memoria de otro.
-
-Bloque 23: cada turno queda guardado en trazas_agente.jsonl (src/trazas.py), con lo que respondió el modelo
-antes de los filtros. Al terminar el stream, src/reporte_marca.py arma el reporte desde esa traza.
-
-Uso, desde la raíz del repositorio y con el entorno activo:
+Uso:
     python3 src/agente_con_memoria.py
 """
 import logging
@@ -89,13 +79,7 @@ def usuario_de(entrada: str) -> str | None:
 
 
 def limpiar_salida(resultado: dict) -> dict:
-    """Deja 'output' como texto plano y filtrado ANTES de que la memoria lo guarde.
-
-    Gemini 3.x responde con una lista de bloques ({'type': 'text', 'text': ..., 'extras': {'signature': ...}}).
-    Si esa lista se guarda tal cual en el historial, en el turno siguiente LangChain no puede convertirla
-    en mensaje y falla (MESSAGE_COERCION_FAILURE). Además, así la memoria no guarda links ni promesas inventadas:
-    si los guardara, el modelo los vería en el turno siguiente como si fueran ciertos.
-    """
+    """Deja 'output' como texto plano y filtrado ANTES de que la memoria lo guarde."""
     return {**resultado, "respuesta_modelo": texto_de_salida(resultado["output"]),
             "output": asegurar_fuente(filtrar_salida(resultado["output"]), resultado.get("intermediate_steps"))}
 
@@ -115,15 +99,7 @@ def construir_agente_con_memoria(modelo, modelo_secundario=None, verbose: bool =
 
 
 def procesar_mensaje_con_memoria(agente: RunnableWithMessageHistory, entrada: str) -> dict:
-    """Responde un mensaje del chat usando la memoria del viewer que lo escribió.
-
-    Sin nombre de usuario no hay sesión: el bot no responde (no puede saber a qué historial pertenece).
-    Ante cualquier error, registra y no responde (Bloque 20). La salida pasa por los mismos filtros del Bloque 21.
-    Cada turno, con o sin error, queda en la traza (Bloque 23).
-
-    Gate 2: un mensaje con un intento de inyección (el detector del Bloque 31) no llega al agente ni a la memoria
-    del viewer: el bot no responde y la traza lo marca, para que la persona que revisa el reporte post-stream lo vea.
-    """
+    """Responde un mensaje del chat usando la memoria del viewer que lo escribió."""
     usuario = usuario_de(entrada)
     if usuario is None:
         return {"output": SIN_RESPUESTA, "intermediate_steps": []}
