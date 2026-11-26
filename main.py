@@ -27,6 +27,10 @@ sys.path.insert(0, str(RAIZ / "prompts"))
 
 # comando -> (script, argumentos fijos, descripción, grupo)
 COMANDOS = {
+    # Módulo 3
+    "ficha": ("crear_ficha.py", [], "crea el esqueleto de docs/ficha_diseno_funcional.md (Bloque 33)", "Módulo 3"),
+    "verificar-ficha": ("verificar_ficha.py", [], "revisa la forma de las secciones 1 a 3 de la ficha (Bloque 33)", "Módulo 3"),
+    "presupuesto": ("src/presupuesto_alcance.py", [], "revisa si el MVP cabe en las horas (Bloque 33; --horas N)", "Módulo 3"),
     # Gate 2
     "servicio": ("servicio_rag.py", [], "servicio RAG de punta a punta: índice, consultas con fuente, supervisión", "Gate 2"),
     "consulta": ("servicio_rag.py", ["--pregunta"], 'una pregunta al servicio: python3 main.py consulta "¿llega a Arica?"', "Gate 2"),
@@ -69,7 +73,7 @@ COMANDOS = {
 def crear_parser() -> argparse.ArgumentParser:
     grupos: dict[str, list[str]] = {}
     for nombre, (_, _, descripcion, grupo) in COMANDOS.items():
-        grupos.setdefault(grupo, []).append(f"  {nombre:<13} {descripcion}")
+        grupos.setdefault(grupo, []).append(f"  {nombre:<16} {descripcion}")
     epilogo = "\n\n".join(f"{grupo}:\n" + "\n".join(lineas) for grupo, lineas in grupos.items())
     parser = argparse.ArgumentParser(
         prog="python3 main.py", formatter_class=argparse.RawDescriptionHelpFormatter,

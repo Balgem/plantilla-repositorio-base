@@ -105,6 +105,15 @@ También están el registro del ensayo (`docs/registro_ensayo_gate2.md`) y mi au
 - El detector de inyección se puede esquivar con sinónimos. Por eso también están la cita obligatoria y los filtros de salida.
 - La generación tarda entre 2 y 9 segundos según la corrida.
 
+## Módulo 3
+
+La ficha de diseño funcional está en `docs/ficha_diseno_funcional.md` (secciones 1 a 3), con el diagrama en `docs/diagrama_arquitectura.png`.
+
+```bash
+python3 main.py verificar-ficha   # revisa la forma de la ficha
+python3 main.py presupuesto       # revisa si el MVP cabe en las horas (--horas N)
+```
+
 ## Comandos
 
 `python3 main.py` muestra la lista completa. Los principales, además de los de arriba: `indexar`, `recuperar`, `evaluar`, `registro`, `decision`, `logs`, `prompts`, `matriz`, `agente`, `memoria`, `trazas`, `autoevaluacion`, y los del Gate 1 (`demo`, `consistencia`, `comparar --confirmar`).
